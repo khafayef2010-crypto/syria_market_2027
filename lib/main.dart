@@ -6114,7 +6114,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
           Navigator.push(
               context,
               MaterialPageRoute(
-                  builder: (ctx) => const FullSubscriptionPlansScreen()));
+                  builder: (ctx) => FullSubscriptionPlansScreen()));
         },
         onOpenAdminPanel: () {
           Navigator.push(
@@ -7507,88 +7507,89 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
           const SizedBox(height: 12),
         ],
         ListTile(
+      shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        tileColor: _manager.secondaryColor.withOpacity(0.15),
+        leading: Icon(Icons.lightbulb, color: _manager.secondaryColor),
+        title: const Text('صوتك مسموع 💡 - اقترح وطوّر التطبيق',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: const Text('أرسل أفكارك وملاحظاتك مباشرةً لصاحب التطبيق'),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (ctx) => AppFeedbackScreen())),
+      ),
+      const SizedBox(height: 10),
+      if (!_manager.isLoggedIn)
+        ListTile(
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          tileColor: _manager.secondaryColor.withOpacity(0.15),
-          leading: Icon(Icons.lightbulb, color: _manager.secondaryColor),
-          title: const Text('صوتك مسموع 💡 - اقترح وطوّر التطبيق',
+          tileColor: _manager.primaryColor.withOpacity(0.1),
+          leading: Icon(Icons.login, color: _manager.primaryColor),
+          title: const Text('تسجيل الدخول / إنشاء حساب جديد',
               style: TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: const Text('أرسل أفكارك وملاحظاتك مباشرةً لصاحب التطبيق'),
+          subtitle: const Text('تسجيل سريع مع ميزة استرجاع كلمة المرور'),
           trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-          onTap: () => Navigator.push(context,
-              MaterialPageRoute(builder: (ctx) => AppFeedbackScreen())),
+          onTap: () => Navigator.push(
+              context, MaterialPageRoute(builder: (ctx) => AuthScreen())),
+        )
+      else
+        ListTile(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          tileColor: Colors.red.withOpacity(0.08),
+          leading: const Icon(Icons.logout, color: Colors.red),
+          title: const Text('تسجيل الخروج',
+              style:
+                  TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          onTap: () async {
+            await _manager.logoutUser();
+            setState(() {
+              _favoriteAdIds.clear();
+              _userChatThreads.clear();
+            });
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('تم تسجيل الخروج بنجاح.')));
+            }
+          },
         ),
-        const SizedBox(height: 10),
-        if (!_manager.isLoggedIn)
-          ListTile(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            tileColor: _manager.primaryColor.withOpacity(0.1),
-            leading: Icon(Icons.login, color: _manager.primaryColor),
-            title: const Text('تسجيل الدخول / إنشاء حساب جديد',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: const Text('تسجيل سريع مع ميزة استرجاع كلمة المرور'),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-            onTap: () => Navigator.push(
-                context, MaterialPageRoute(builder: (ctx) => AuthScreen())),
-          )
-        else
-          ListTile(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            tileColor: Colors.red.withOpacity(0.08),
-            leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text('تسجيل الخروج',
-                style:
-                    TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-            onTap: () async {
-              await _manager.logoutUser();
-              setState(() {
-                _favoriteAdIds.clear();
-                _userChatThreads.clear();
-              });
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('تم تسجيل الخروج بنجاح.')));
-              }
-            },
-          ),
+      const SizedBox(height: 10),
+      ListTile(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        tileColor: Colors.grey.withOpacity(0.06),
+        leading:
+            Icon(Icons.workspace_premium, color: _manager.secondaryColor),
+        title: const Text('ترقية الباقة والاشتراكات VIP'),
+        subtitle: const Text('ميزات حصرية ونشر غير محدود'),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+        onTap: () {
+          _showContactAdminDialog();
+        },
+      ),
+      if (_manager.isModerator) ...[
         const SizedBox(height: 10),
         ListTile(
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          tileColor: Colors.grey.withOpacity(0.06),
-          leading:
-              Icon(Icons.workspace_premium, color: _manager.secondaryColor),
-          title: const Text('ترقية الباقة والاشتراكات VIP'),
-          subtitle: const Text('ميزات حصرية ونشر غير محدود'),
+          tileColor: Colors.red.withOpacity(0.08),
+          leading: const Icon(Icons.admin_panel_settings, color: Colors.red),
+          title: const Text('غرفة العمليات ولوحة تحكم المشرفين 🛡️',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: const Text(
+              'موافقة الإعلانات، تدقيق إيصالات شام كاش وبينانس، إدارة الأقسام والأسعار'),
           trailing: const Icon(Icons.arrow_forward_ios, size: 14),
           onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (ctx) => const FullSubscriptionPlansScreen())),
-        ),
-        if (_manager.isModerator) ...[
-          const SizedBox(height: 10),
-          ListTile(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            tileColor: Colors.red.withOpacity(0.08),
-            leading: const Icon(Icons.admin_panel_settings, color: Colors.red),
-            title: const Text('غرفة العمليات ولوحة تحكم المشرفين 🛡️',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: const Text(
-                'موافقة الإعلانات، تدقيق إيصالات شام كاش وبينانس، إدارة الأقسام والأسعار'),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (ctx) => const FullAdminPanelScreen())),
+            context,
+            MaterialPageRoute(
+              builder: (ctx) => const FullAdminPanelScreen(),
+            ),
           ),
-        ],
+        ),
       ],
-    );
-  }
+    ],
+  );
+}
 
   void _openAddAdScreen() {
     Navigator.push(
@@ -8604,126 +8605,6 @@ class _FullChatNegotiationScreenState extends State<FullChatNegotiationScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class SubscriptionPlanItem {
-  final String id;
-  final String title;
-  final String description;
-  final double priceUsd;
-  final double priceSyp;
-  final int durationDays;
-  final int maxAdsAllowed;
-  final int maxImagesPerAd;
-  final int maxPanoramasAllowed;
-  final bool allowsVideo;
-  final bool allowsSocialLinks;
-  final bool isFeaturedListing;
-  final bool isVerifiedBadgeIncluded;
-  final bool hasPrioritySupport;
-  final bool allowsAuctions;
-  final List<String> features;
-
-  const SubscriptionPlanItem({
-    this.id = '',
-    this.title = 'باقة عامة',
-    this.description = '',
-    this.priceUsd = 0.0,
-    this.priceSyp = 0.0,
-    this.durationDays = 30,
-    this.maxAdsAllowed = 5,
-    this.maxImagesPerAd = 5,
-    this.maxPanoramasAllowed = 0,
-    this.allowsVideo = false,
-    this.allowsSocialLinks = false,
-    this.isFeaturedListing = false,
-    this.isVerifiedBadgeIncluded = false,
-    this.hasPrioritySupport = false,
-    this.allowsAuctions = false,
-    this.features = const [],
-  });
-
-  Map<String, dynamic> toMap() => {
-        'id': id,
-        'title': title,
-        'description': description,
-        'price_usd': priceUsd,
-        'price_syp': priceSyp,
-        'duration_days': durationDays,
-        'max_ads_allowed': maxAdsAllowed,
-        'max_images_per_ad': maxImagesPerAd,
-        'max_panoramas_allowed': maxPanoramasAllowed,
-        'allows_video': allowsVideo,
-        'allows_social_links': allowsSocialLinks,
-        'is_featured_listing': isFeaturedListing,
-        'is_verified_badge_included': isVerifiedBadgeIncluded,
-        'has_priority_support': hasPrioritySupport,
-        'allows_auctions': allowsAuctions,
-        'features': features,
-      };
-
-  factory SubscriptionPlanItem.fromMap(Map<String, dynamic> map) {
-    return SubscriptionPlanItem(
-      id: map['id']?.toString() ?? '',
-      title: map['title']?.toString() ?? 'باقة عامة',
-      description: map['description']?.toString() ?? '',
-      priceUsd: (map['price_usd'] as num?)?.toDouble() ?? 0.0,
-      priceSyp: (map['price_syp'] as num?)?.toDouble() ?? 0.0,
-      durationDays: (map['duration_days'] as num?)?.toInt() ?? 30,
-      maxAdsAllowed: (map['max_ads_allowed'] as num?)?.toInt() ?? 5,
-      maxImagesPerAd: (map['max_images_per_ad'] as num?)?.toInt() ?? 5,
-      maxPanoramasAllowed: (map['max_panoramas_allowed'] as num?)?.toInt() ?? 0,
-      allowsVideo: map['allows_video'] == true,
-      allowsSocialLinks: map['allows_social_links'] == true,
-      isFeaturedListing: map['is_featured_listing'] == true,
-      isVerifiedBadgeIncluded: map['is_verified_badge_included'] == true,
-      hasPrioritySupport: map['has_priority_support'] == true,
-      allowsAuctions: map['allows_auctions'] == true,
-      features: (map['features'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          const [],
-    );
-  }
-
-  SubscriptionPlanItem copyWith({
-    String? id,
-    String? title,
-    String? description,
-    double? priceUsd,
-    double? priceSyp,
-    int? durationDays,
-    int? maxAdsAllowed,
-    int? maxImagesPerAd,
-    int? maxPanoramasAllowed,
-    bool? allowsVideo,
-    bool? allowsSocialLinks,
-    bool? isFeaturedListing,
-    bool? isVerifiedBadgeIncluded,
-    bool? hasPrioritySupport,
-    bool? allowsAuctions,
-    List<String>? features,
-  }) {
-    return SubscriptionPlanItem(
-      id: id ?? this.id,
-      title: title ?? this.title,
-      description: description ?? this.description,
-      priceUsd: priceUsd ?? this.priceUsd,
-      priceSyp: priceSyp ?? this.priceSyp,
-      durationDays: durationDays ?? this.durationDays,
-      maxAdsAllowed: maxAdsAllowed ?? this.maxAdsAllowed,
-      maxImagesPerAd: maxImagesPerAd ?? this.maxImagesPerAd,
-      maxPanoramasAllowed: maxPanoramasAllowed ?? this.maxPanoramasAllowed,
-      allowsVideo: allowsVideo ?? this.allowsVideo,
-      allowsSocialLinks: allowsSocialLinks ?? this.allowsSocialLinks,
-      isFeaturedListing: isFeaturedListing ?? this.isFeaturedListing,
-      isVerifiedBadgeIncluded:
-          isVerifiedBadgeIncluded ?? this.isVerifiedBadgeIncluded,
-      hasPrioritySupport: hasPrioritySupport ?? this.hasPrioritySupport,
-      allowsAuctions: allowsAuctions ?? this.allowsAuctions,
-      features: features ?? this.features,
     );
   }
 }
