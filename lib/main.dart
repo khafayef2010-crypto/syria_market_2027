@@ -5422,7 +5422,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
 
   final TextEditingController _searchController = TextEditingController();
 
-  @override
+@override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
@@ -8621,235 +8621,121 @@ class _FullChatNegotiationScreenState extends State<FullChatNegotiationScreen> {
     );
   }
 }
+class SubscriptionPlanItem {
+  final String id;
+  final String title;
+  final String description;
+  final double priceUsd;
+  final double priceSyp;
+  final int durationDays;
+  final int maxAdsAllowed;
+  final int maxImagesPerAd;
+  final int maxPanoramasAllowed;
+  final bool allowsVideo;
+  final bool allowsSocialLinks;
+  final bool isFeaturedListing;
+  final bool isVerifiedBadgeIncluded;
+  final bool hasPrioritySupport;
+  final bool allowsAuctions;
+  final List<String> features;
 
-// ==============================================================================
-// 22. شاشة باقات الاشتراك وتأكيد سداد شام كاش وبينانس (FullSubscriptionPlansScreen)
-// ==============================================================================
-class FullSubscriptionPlansScreen extends StatelessWidget {
-  const FullSubscriptionPlansScreen({Key? key}) : super(key: key);
+  const SubscriptionPlanItem({
+    this.id = '',
+    this.title = 'باقة عامة',
+    this.description = '',
+    this.priceUsd = 0.0,
+    this.priceSyp = 0.0,
+    this.durationDays = 30,
+    this.maxAdsAllowed = 5,
+    this.maxImagesPerAd = 5,
+    this.maxPanoramasAllowed = 0,
+    this.allowsVideo = false,
+    this.allowsSocialLinks = false,
+    this.isFeaturedListing = false,
+    this.isVerifiedBadgeIncluded = false,
+    this.hasPrioritySupport = false,
+    this.allowsAuctions = false,
+    this.features = const [],
+  });
 
-  void _showPaymentInstructions(
-      BuildContext context, SubscriptionPlanItem plan) {
-    final manager = AppStateManager();
-    final txController = TextEditingController();
-    String selectedGateway = 'SHAM_CASH';
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'title': title,
+        'description': description,
+        'price_usd': priceUsd,
+        'price_syp': priceSyp,
+        'duration_days': durationDays,
+        'max_ads_allowed': maxAdsAllowed,
+        'max_images_per_ad': maxImagesPerAd,
+        'max_panoramas_allowed': maxPanoramasAllowed,
+        'allows_video': allowsVideo,
+        'allows_social_links': allowsSocialLinks,
+        'is_featured_listing': isFeaturedListing,
+        'is_verified_badge_included': isVerifiedBadgeIncluded,
+        'has_priority_support': hasPrioritySupport,
+        'allows_auctions': allowsAuctions,
+        'features': features,
+      };
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setSheetState) => Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.workspace_premium,
-                        color: manager.secondaryColor),
-                    const SizedBox(width: 8),
-                    Text('سداد وتفعيل: ${plan.name}',
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                const ExclusivePaymentGatewayCard(),
-                const SizedBox(height: 14),
-                const Text('اختر وسيلة الدفع التي قمت بالتحويل من خلالها:',
-                    style:
-                        TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ChoiceChip(
-                        label: const Text('🇸🇾 شام كاش',
-                            style: TextStyle(fontSize: 12)),
-                        selected: selectedGateway == 'SHAM_CASH',
-                        onSelected: (v) =>
-                            setSheetState(() => selectedGateway = 'SHAM_CASH'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ChoiceChip(
-                        label: const Text('🪙 بينانس USDT',
-                            style: TextStyle(fontSize: 12)),
-                        selected: selectedGateway == 'BINANCE_USDT',
-                        onSelected: (v) => setSheetState(
-                            () => selectedGateway = 'BINANCE_USDT'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: txController,
-                  decoration: const InputDecoration(
-                    labelText: 'رقم العملية / TXID / مرجع التحويل *',
-                    hintText: 'أدخل رقم إشعار الحوالة لتأكيد ترقية حسابك',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 46,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: manager.buttonColor),
-                    onPressed: () async {
-                      final ref = txController.text.trim();
-                      if (ref.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('يرجى إدخال مرجع أو رقم الحوالة')),
-                        );
-                        return;
-                      }
-
-                      await manager.submitPaymentAuditRequest(
-                        plan: plan,
-                        gateway: selectedGateway,
-                        refOrTxId: ref,
-                      );
-
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                              '✅ تم إرسال طلب التفعيل بنجاح لغرفة العمليات المركزية وسيتم الترقية فور التحقق.'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    },
-                    child: const Text('تأكيد وإرسال الإشعار للإدارة 🚀',
-                        style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+  factory SubscriptionPlanItem.fromMap(Map<String, dynamic> map) {
+    return SubscriptionPlanItem(
+      id: map['id']?.toString() ?? '',
+      title: map['title']?.toString() ?? 'باقة عامة',
+      description: map['description']?.toString() ?? '',
+      priceUsd: (map['price_usd'] as num?)?.toDouble() ?? 0.0,
+      priceSyp: (map['price_syp'] as num?)?.toDouble() ?? 0.0,
+      durationDays: (map['duration_days'] as num?)?.toInt() ?? 30,
+      maxAdsAllowed: (map['max_ads_allowed'] as num?)?.toInt() ?? 5,
+      maxImagesPerAd: (map['max_images_per_ad'] as num?)?.toInt() ?? 5,
+      maxPanoramasAllowed: (map['max_panoramas_allowed'] as num?)?.toInt() ?? 0,
+      allowsVideo: map['allows_video'] == true,
+      allowsSocialLinks: map['allows_social_links'] == true,
+      isFeaturedListing: map['is_featured_listing'] == true,
+      isVerifiedBadgeIncluded: map['is_verified_badge_included'] == true,
+      hasPrioritySupport: map['has_priority_support'] == true,
+      allowsAuctions: map['allows_auctions'] == true,
+      features: (map['features'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final manager = AppStateManager();
-    final plans = manager.subscriptionPlans;
-
-    return Scaffold(
-      backgroundColor: manager.scaffoldBgColor,
-      appBar: AppBar(
-        backgroundColor: manager.appBarColor,
-        title: const Text(
-          'باقات الاشتراك والترقية VIP 👑',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: ListView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        children: [
-          const ExclusivePaymentGatewayCard(),
-          const SizedBox(height: 16),
-          ...plans.map((plan) {
-            final isCurrent = manager.currentUserPlanId == plan.id;
-            return Card(
-              margin: const EdgeInsets.only(bottom: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: BorderSide(
-                  color: isCurrent
-                      ? const Color(0xFFD4AF37)
-                      : Colors.grey.shade300,
-                  width: isCurrent ? 2 : 1,
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(plan.name,
-                            style: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.bold)),
-                        Text(
-                          plan.priceUsd == 0
-                              ? 'مجاناً'
-                              : '\$${plan.priceUsd.toInt()} / شهرياً',
-                          style: const TextStyle(
-                              color: Color(0xFF16A34A),
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 18),
-                    ...plan.features.map((f) => Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.check_circle,
-                                  color: Colors.green, size: 16),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                  child: Text(f,
-                                      style: const TextStyle(fontSize: 12))),
-                            ],
-                          ),
-                        )),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              isCurrent ? Colors.grey : manager.primaryColor,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                        ),
-                        onPressed: isCurrent
-                            ? null
-                            : () => _showPaymentInstructions(context, plan),
-                        child: Text(
-                          isCurrent ? 'باقتك الحالية ✓' : 'اشترك ورقّ حسابك ✨',
-                          style: const TextStyle(
-                              color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }),
-        ],
-      ),
+  SubscriptionPlanItem copyWith({
+    String? id,
+    String? title,
+    String? description,
+    double? priceUsd,
+    double? priceSyp,
+    int? durationDays,
+    int? maxAdsAllowed,
+    int? maxImagesPerAd,
+    int? maxPanoramasAllowed,
+    bool? allowsVideo,
+    bool? allowsSocialLinks,
+    bool? isFeaturedListing,
+    bool? isVerifiedBadgeIncluded,
+    bool? hasPrioritySupport,
+    bool? allowsAuctions,
+    List<String>? features,
+  }) {
+    return SubscriptionPlanItem(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      priceUsd: priceUsd ?? this.priceUsd,
+      priceSyp: priceSyp ?? this.priceSyp,
+      durationDays: durationDays ?? this.durationDays,
+      maxAdsAllowed: maxAdsAllowed ?? this.maxAdsAllowed,
+      maxImagesPerAd: maxImagesPerAd ?? this.maxImagesPerAd,
+      maxPanoramasAllowed: maxPanoramasAllowed ?? this.maxPanoramasAllowed,
+      allowsVideo: allowsVideo ?? this.allowsVideo,
+      allowsSocialLinks: allowsSocialLinks ?? this.allowsSocialLinks,
+      isFeaturedListing: isFeaturedListing ?? this.isFeaturedListing,
+      isVerifiedBadgeIncluded: isVerifiedBadgeIncluded ?? this.isVerifiedBadgeIncluded,
+      hasPrioritySupport: hasPrioritySupport ?? this.hasPrioritySupport,
+      allowsAuctions: allowsAuctions ?? this.allowsAuctions,
+      features: features ?? this.features,
     );
   }
 }
