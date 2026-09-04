@@ -1101,7 +1101,6 @@ class AppSmartImage extends StatelessWidget {
         child: const Icon(Icons.broken_image, color: Colors.white30, size: 24),
       );
 }
-
 // ==============================================================================
 // 5. مدير الحالة والذاكرة المركزية الدائمة (AppStateManager)
 // ==============================================================================
@@ -1184,10 +1183,34 @@ class AppStateManager extends ChangeNotifier {
   int bannerDefaultIntervalSeconds = 3;
   bool isLoadingCloudData = false;
 
+  // دالة جلب باقة المستخدم الحالية (مع حماية ضد الخطأ وإعادة قيمة افتراضية متوافقة)
+  UserPlan getCurrentUserPlan() {
+    try {
+      if (subscriptionPlans.isNotEmpty) {
+        return subscriptionPlans.firstWhere(
+          (p) => p.id == currentUserPlanId,
+          orElse: () => subscriptionPlans.first,
+        );
+      }
+    } catch (_) {}
+    return const UserPlan();
+  }
+
+  // التحقق من الكلمات المحظورة
+  String? checkForbiddenContent(String text) {
+    for (var word in forbiddenKeywords) {
+      if (text.contains(word)) {
+        return word;
+      }
+    }
+    return null;
+  }
+
   // إرسال تنبيهات الإدارة عبر تليجرام أو السجل السحابي
   Future<void> sendTelegramAlert(String message) async {
     debugPrint('Admin Notification: $message');
   }
+}
 
   // ---------------------------------------------------------------------------
   // حفظ واسترجاع الجلسة الدائمة (Permanent Session Persistence)
