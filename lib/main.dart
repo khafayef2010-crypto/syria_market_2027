@@ -4527,8 +4527,16 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
   Widget build(BuildContext context) {
     final images =
         _currentAd.imageUrls.isNotEmpty ? _currentAd.imageUrls : [''];
-    final canEdit =
-        _manager.isSuperAdmin || _manager.currentUserId == _currentAd.userId;
+
+    // التحقق المرن: المشرف أو المدير، أو صاحب الإعلان بالمعرف أو برقم الهاتف
+    final bool isOwner = _manager.isLoggedIn &&
+        (_manager.currentUserId == _currentAd.userId ||
+            (_manager.currentUserPhone.isNotEmpty &&
+                _manager.currentUserPhone == _currentAd.phone));
+
+    final bool canEdit =
+        _manager.isSuperAdmin || _manager.isModerator || isOwner;
+
     final remaining = _currentAd.soldRemainingDuration;
 
     return Scaffold(
@@ -4550,6 +4558,39 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          if (canEdit)
+            IconButton(
+              icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
+              tooltip: 'حذف الإعلان',
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('حذف الإعلان نهائياً'),
+                        content: const Text(
+                            'هل أنت متأكد من رغبتك في حذف هذا الإعلان نهائياً من السوق؟'),
+                        actions: [
+                          TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('إلغاء')),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red),
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('تأكيد الحذف',
+                                style: TextStyle(color: Colors.white)),
+                          ),
+                        ],
+                      ),
+                    ) ??
+                    false;
+                if (confirm) {
+                  _manager.deleteAdCompletely(_currentAd.id);
+                  widget.onAdDeleted(_currentAd.id);
+                  Navigator.pop(context);
+                }
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.share_outlined, color: Colors.white),
             tooltip: 'معاينة ومشاركة الرابط',
@@ -4567,22 +4608,24 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
       body: ListView(
         physics: const BouncingScrollPhysics(),
         children: [
+          // شريط أدوات الإدارة البارز (يظهر فوراً على الموبايل والآيباد دون اختفاء)
           if (canEdit)
             Container(
-              color: const Color(0xFF1E293B),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              color: const Color(0xFF0F172A),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               child: Row(
                 children: [
                   Expanded(
+                    flex: 4,
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF0284C7),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
                       ),
                       icon:
-                          const Icon(Icons.edit, color: Colors.white, size: 16),
+                          const Icon(Icons.edit, color: Colors.white, size: 15),
                       label: const Text('تعديل الإعلان',
                           style: TextStyle(
                               color: Colors.white,
@@ -4591,8 +4634,9 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
                       onPressed: _openEditScreen,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   Expanded(
+                    flex: 5,
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _currentAd.isSold
@@ -4600,16 +4644,16 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
                             : const Color(0xFFDC2626),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
                       ),
                       icon: Icon(
                           _currentAd.isSold
                               ? Icons.undo
                               : Icons.check_circle_outline,
                           color: Colors.white,
-                          size: 16),
+                          size: 15),
                       label: Text(
-                          _currentAd.isSold ? 'إلغاء البيع' : 'تم البيع ✓',
+                          _currentAd.isSold ? 'إلغاء البيع' : 'ختم تم البيع ✓',
                           style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,
@@ -4617,20 +4661,43 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
                       onPressed: _confirmMarkAsSold,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   IconButton(
                     style: IconButton.styleFrom(
-                      backgroundColor: Colors.red.withOpacity(0.15),
+                      backgroundColor: Colors.red.withOpacity(0.2),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8)),
                     ),
                     icon: const Icon(Icons.delete_outline,
                         color: Colors.redAccent, size: 20),
                     tooltip: 'حذف الإعلان',
-                    onPressed: () {
-                      _manager.deleteAdCompletely(_currentAd.id);
-                      widget.onAdDeleted(_currentAd.id);
-                      Navigator.pop(context);
+                    onPressed: () async {
+                      final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('حذف الإعلان نهائياً'),
+                              content: const Text(
+                                  'هل ترغب بالتأكيد في حذف هذا الإعلان؟'),
+                              actions: [
+                                TextButton(
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                    child: const Text('إلغاء')),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red),
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text('حذف',
+                                      style: TextStyle(color: Colors.white)),
+                                ),
+                              ],
+                            ),
+                          ) ??
+                          false;
+                      if (confirm) {
+                        _manager.deleteAdCompletely(_currentAd.id);
+                        widget.onAdDeleted(_currentAd.id);
+                        Navigator.pop(context);
+                      }
                     },
                   ),
                 ],
