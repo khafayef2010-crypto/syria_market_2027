@@ -544,7 +544,8 @@ class AdItem {
         'category_id': categoryId,
         'subcategory': subcategory,
         'condition': condition,
-        'publisher_phone': contactPhone.isNotEmpty ? contactPhone : contactWhatsapp,
+        'publisher_phone':
+            contactPhone.isNotEmpty ? contactPhone : contactWhatsapp,
         'publisher_name': publisherName.isNotEmpty ? publisherName : 'معلن',
         'publisher_email': publisherEmail,
         'image_urls': imageUrls,
@@ -584,7 +585,9 @@ class AdItem {
       categoryId: map['category_id']?.toString() ?? 'عام',
       subcategory: map['subcategory']?.toString() ?? 'عام',
       condition: map['condition']?.toString() ?? 'مستعمل',
-      contactPhone: map['publisher_phone']?.toString() ?? map['contact_phone']?.toString() ?? kAppOwnerPhone,
+      contactPhone: map['publisher_phone']?.toString() ??
+          map['contact_phone']?.toString() ??
+          kAppOwnerPhone,
       contactWhatsapp: map['contact_whatsapp']?.toString() ?? kAppOwnerWhatsApp,
       imageUrls: imgs,
       videoUrl: map['video_url']?.toString(),
@@ -1100,6 +1103,7 @@ class AppSmartImage extends StatelessWidget {
         child: const Icon(Icons.broken_image, color: Colors.white30, size: 24),
       );
 }
+
 // ==============================================================================
 // 5. مدير الحالة والذاكرة المركزية الدائمة (AppStateManager)
 // ==============================================================================
@@ -1182,34 +1186,10 @@ class AppStateManager extends ChangeNotifier {
   int bannerDefaultIntervalSeconds = 3;
   bool isLoadingCloudData = false;
 
-  // دالة جلب باقة المستخدم الحالية (مع حماية ضد الخطأ وإعادة قيمة افتراضية متوافقة)
-  UserPlan getCurrentUserPlan() {
-    try {
-      if (subscriptionPlans.isNotEmpty) {
-        return subscriptionPlans.firstWhere(
-          (p) => p.id == currentUserPlanId,
-          orElse: () => subscriptionPlans.first,
-        );
-      }
-    } catch (_) {}
-    return const UserPlan();
-  }
-
-  // التحقق من الكلمات المحظورة
-  String? checkForbiddenContent(String text) {
-    for (var word in forbiddenKeywords) {
-      if (text.contains(word)) {
-        return word;
-      }
-    }
-    return null;
-  }
-
   // إرسال تنبيهات الإدارة عبر تليجرام أو السجل السحابي
   Future<void> sendTelegramAlert(String message) async {
     debugPrint('Admin Notification: $message');
   }
-}
 
   // ---------------------------------------------------------------------------
   // حفظ واسترجاع الجلسة الدائمة (Permanent Session Persistence)
@@ -1416,7 +1396,11 @@ class AppStateManager extends ChangeNotifier {
     }
   }
 
+  // ===========================================================================
+  // دوال إدارة الإعلانات والدفعات (المطلوبة لبناء المشروع)
+  // ===========================================================================
   void addNewAdDirectly(AdItem ad) {
+    ads.removeWhere((x) => x.id == ad.id);
     ads.insert(0, ad);
     saveAdsToOfflineCache(ads);
     notifyListeners();
@@ -5421,7 +5405,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
 
   final TextEditingController _searchController = TextEditingController();
 
-@override
+  @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
@@ -7629,6 +7613,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
     );
   }
 }
+
 // ==============================================================================
 // 🌟 سوق سوريا الشامل 2028 - المنظومة السيادية الحقيقية المتكاملة 100%
 // [الدفعة 4 من أصل 4: شاشة إضافة الإعلان، غرف المحادثة، باقات الاشتراك، غرفة العمليات، و main()]
@@ -7821,8 +7806,8 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
     if (forbiddenWord != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-              '❌ عذراً! يحتوي الإعلان على كلمة محظورة: "$forbiddenWord"'),
+          content:
+              Text('❌ عذراً! يحتوي الإعلان على كلمة محظورة: "$forbiddenWord"'),
           backgroundColor: Colors.red.shade900,
         ),
       );
@@ -7847,7 +7832,8 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
 
     final adItem = AdItem(
       id: widget.initialAd?.id ?? '',
-      userId: _manager.currentUserId.isNotEmpty ? _manager.currentUserId : 'guest',
+      userId:
+          _manager.currentUserId.isNotEmpty ? _manager.currentUserId : 'guest',
       title: _titleController.text.trim(),
       description: _descController.text.trim(),
       priceUsd: pUsd,
@@ -7885,7 +7871,7 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
             .update(adItem.toMap())
             .eq('id', adItem.id)
             .timeout(const Duration(seconds: 12));
-        
+
         widget.onAdCreated(adItem);
       } else {
         final res = await Supabase.instance.client
@@ -8363,6 +8349,7 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
     );
   }
 }
+
 // ==============================================================================
 // 21. شاشة التفاوض وغرف المحادثة المباشرة (FullChatNegotiationScreen)
 // ==============================================================================
@@ -8620,6 +8607,7 @@ class _FullChatNegotiationScreenState extends State<FullChatNegotiationScreen> {
     );
   }
 }
+
 class SubscriptionPlanItem {
   final String id;
   final String title;
@@ -8731,7 +8719,8 @@ class SubscriptionPlanItem {
       allowsVideo: allowsVideo ?? this.allowsVideo,
       allowsSocialLinks: allowsSocialLinks ?? this.allowsSocialLinks,
       isFeaturedListing: isFeaturedListing ?? this.isFeaturedListing,
-      isVerifiedBadgeIncluded: isVerifiedBadgeIncluded ?? this.isVerifiedBadgeIncluded,
+      isVerifiedBadgeIncluded:
+          isVerifiedBadgeIncluded ?? this.isVerifiedBadgeIncluded,
       hasPrioritySupport: hasPrioritySupport ?? this.hasPrioritySupport,
       allowsAuctions: allowsAuctions ?? this.allowsAuctions,
       features: features ?? this.features,
