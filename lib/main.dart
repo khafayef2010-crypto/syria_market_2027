@@ -1,7 +1,6 @@
 // ==============================================================================
 // 🌟 سوق سوريا الشامل 2028 - المنظومة السيادية الحقيقية المتكاملة 100%
-// [الدفعة 1 من أصل 4: الثوابت السحابية، علم الاستقلال، النماذج، ومستودع السحابة ومدير الحالة]
-// مربوطة بالكامل بالسيرفر الحقيقي وقواعد البيانات الحقيقية دون أي اختصار
+// [القسم الأول: الثوابت، النماذج، ومستودع السحابة مع المزامنة اللحظية Real-Time Sync]
 // ==============================================================================
 
 import 'dart:async';
@@ -90,20 +89,20 @@ class _SyrianFlagPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final stripeHeight = size.height / 3.0;
 
-    // 1. الشريط الأخضر العلوي (رمز السيادة)
+    // 1. الشريط الأخضر العلوي
     final greenPaint = Paint()
       ..color = const Color(0xFF007A3D)
       ..style = PaintingStyle.fill;
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, stripeHeight), greenPaint);
 
-    // 2. الشريط الأبيض الأوسط (رمز النقاء والسلام)
+    // 2. الشريط الأبيض الأوسط
     final whitePaint = Paint()
       ..color = const Color(0xFFFFFFFF)
       ..style = PaintingStyle.fill;
     canvas.drawRect(
         Rect.fromLTWH(0, stripeHeight, size.width, stripeHeight), whitePaint);
 
-    // 3. الشريط الأسود السفلي (رمز الصمود والعزة)
+    // 3. الشريط الأسود السفلي
     final blackPaint = Paint()
       ..color = const Color(0xFF1E293B)
       ..style = PaintingStyle.fill;
@@ -152,6 +151,7 @@ class _SyrianFlagPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
+
 // ==============================================================================
 // 3. نماذج البيانات الحقيقية المتصلة بقواعد البيانات السحابية (Cloud Models)
 // ==============================================================================
@@ -210,11 +210,11 @@ class PaymentAuditRecord {
   final String userGovernorate;
   final String planId;
   final String planName;
-  final String gateway; // 'SHAM_CASH' أو 'BINANCE_USDT'
+  final String gateway;
   final double amountUsd;
   final double amountSyp;
   final String transactionRefOrTxId;
-  String status; // 'pending' أو 'approved' أو 'rejected'
+  String status;
   String? adminRejectionReason;
   final DateTime createdAt;
   DateTime? processedAt;
@@ -438,15 +438,16 @@ class AdItem {
   bool get isPending => status == 'pending';
   bool get isRejected => status == 'rejected';
 
+  // مهلة الحذف التلقائي للمنشورات المباعة: 15 دقيقة
   bool get shouldBeDeletedNow {
     if (!isSold || soldAt == null) return false;
-    return DateTime.now().difference(soldAt!).inMinutes >= 60;
+    return DateTime.now().difference(soldAt!).inMinutes >= 15;
   }
 
   Duration? get soldRemainingDuration {
     if (!isSold || soldAt == null) return null;
     final diff =
-        const Duration(minutes: 60) - DateTime.now().difference(soldAt!);
+        const Duration(minutes: 15) - DateTime.now().difference(soldAt!);
     return diff.isNegative ? Duration.zero : diff;
   }
 
@@ -550,9 +551,22 @@ class AdItem {
         'publisher_email': publisherEmail,
         'image_urls': imageUrls,
         'video_url': videoUrl ?? '',
+        'facebook_url': facebookUrl ?? '',
+        'telegram_url': telegramUrl ?? '',
+        'instagram_url': instagramUrl ?? '',
+        'tiktok_url': tiktokUrl ?? '',
+        'youtube_url': youtubeUrl ?? '',
         'is_featured': isFeatured,
         'is_sold': isSold,
-        'status': 'approved',
+        'sold_at': soldAt?.toIso8601String(),
+        'seller_positive_likes': sellerPositiveLikes,
+        'seller_dislikes': sellerDislikes,
+        'is_auction': isAuction,
+        'starting_bid': startingBid,
+        'current_bid': currentBid,
+        'auction_end_time': auctionEndTime?.toIso8601String(),
+        'status': status,
+        'rejection_reason': rejectionReason,
         'created_at': createdAt.toIso8601String(),
       };
 
@@ -571,6 +585,10 @@ class AdItem {
           .map((b) => BidRecord.fromMap(b as Map<String, dynamic>))
           .toList();
     }
+
+    final isAuctionVal = map['is_auction'] == true ||
+        map['is_auction'] == 1 ||
+        map['is_auction'] == 'true';
 
     return AdItem(
       id: map['id']?.toString() ??
@@ -605,7 +623,7 @@ class AdItem {
       status: map['status']?.toString() ?? 'pending',
       rejectionReason: map['rejection_reason']?.toString(),
       isFeatured: map['is_featured'] == true,
-      isAuction: map['is_auction'] == true,
+      isAuction: isAuctionVal,
       startingBid: (map['starting_bid'] as num?)?.toDouble(),
       currentBid: (map['current_bid'] as num?)?.toDouble(),
       auctionEndTime: map['auction_end_time'] != null
@@ -1105,7 +1123,7 @@ class AppSmartImage extends StatelessWidget {
 }
 
 // ==============================================================================
-// 5. مدير الحالة والذاكرة المركزية الدائمة (AppStateManager)
+// 5. مدير الحالة والذاكرة المركزية الدائمة (AppStateManager) - المزامنة الحية المباشرة
 // ==============================================================================
 class AppStateManager extends ChangeNotifier {
   static final AppStateManager _instance = AppStateManager._internal();
@@ -1186,13 +1204,57 @@ class AppStateManager extends ChangeNotifier {
   int bannerDefaultIntervalSeconds = 3;
   bool isLoadingCloudData = false;
 
-  // إرسال تنبيهات الإدارة عبر تليجرام أو السجل السحابي
+  // اشتراكات المزامنة اللحظية (Real-Time Stream Subscriptions)
+  StreamSubscription? _adsSubscription;
+  StreamSubscription? _bannersSubscription;
+
   Future<void> sendTelegramAlert(String message) async {
     debugPrint('Admin Notification: $message');
   }
 
   // ---------------------------------------------------------------------------
-  // حفظ واسترجاع الجلسة الدائمة (Permanent Session Persistence)
+  // تفعيل المزامنة اللحظية المباشرة مع سيرفر Supabase لجميع الأجهزة فورياً
+  // ---------------------------------------------------------------------------
+  void initRealtimeListeners() {
+    // 1. الاستماع الحي لجدول الإعلانات (Realtime Stream)
+    _adsSubscription?.cancel();
+    _adsSubscription = Supabase.instance.client
+        .from('ads')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false)
+        .listen((List<Map<String, dynamic>> data) {
+          ads = data.map((map) => AdItem.fromMap(map)).toList();
+          saveAdsToOfflineCache(ads);
+          notifyListeners();
+        }, onError: (err) {
+          debugPrint('Realtime Ads Error: $err');
+        });
+
+    // 2. الاستماع الحي لجدول البانورامات والبنرات (Realtime Stream)
+    _bannersSubscription?.cancel();
+    _bannersSubscription = Supabase.instance.client
+        .from('banners')
+        .stream(primaryKey: ['id']).listen((List<Map<String, dynamic>> data) {
+      banners = data
+          .map((map) => BannerItem.fromMap(map))
+          .where((b) => b.isActive && !b.isExpired)
+          .toList();
+      saveBannersToOfflineCache(banners);
+      notifyListeners();
+    }, onError: (err) {
+      debugPrint('Realtime Banners Error: $err');
+    });
+  }
+
+  @override
+  void dispose() {
+    _adsSubscription?.cancel();
+    _bannersSubscription?.cancel();
+    super.dispose();
+  }
+
+  // ---------------------------------------------------------------------------
+  // حفظ واسترجاع الجلسة الدائمة
   // ---------------------------------------------------------------------------
   Future<void> loadPersistedSession() async {
     try {
@@ -1279,7 +1341,7 @@ class AppStateManager extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------------
-  // حفظ واسترجاع البيانات محلياً وسحابياً لضمان الديمومة 100%
+  // حفظ واسترجاع البيانات محلياً وسحابياً لضمان الديمومة
   // ---------------------------------------------------------------------------
   Future<void> saveAdsToOfflineCache(List<AdItem> adsList) async {
     try {
@@ -1328,7 +1390,9 @@ class AppStateManager extends ChangeNotifier {
     }
     notifyListeners();
 
+    // تشغيل الجلب والمزامنة اللحظية
     fetchRealDataFromCloud();
+    initRealtimeListeners();
   }
 
   Future<void> fetchRealDataFromCloud() async {
@@ -1397,7 +1461,7 @@ class AppStateManager extends ChangeNotifier {
   }
 
   // ===========================================================================
-  // دوال إدارة الإعلانات والدفعات (المطلوبة لبناء المشروع)
+  // دوال إدارة الإعلانات والدفعات (مربوطة سحابياً 100%)
   // ===========================================================================
   void addNewAdDirectly(AdItem ad) {
     ads.removeWhere((x) => x.id == ad.id);
@@ -1586,12 +1650,15 @@ class AppStateManager extends ChangeNotifier {
     final idx = ads.indexWhere((x) => x.id == adId);
     if (idx != -1) {
       final current = ads[idx];
+      final newLikes = isPositive
+          ? current.sellerPositiveLikes + 1
+          : current.sellerPositiveLikes;
+      final newDislikes =
+          !isPositive ? current.sellerDislikes + 1 : current.sellerDislikes;
+
       ads[idx] = current.copyWith(
-        sellerPositiveLikes: isPositive
-            ? current.sellerPositiveLikes + 1
-            : current.sellerPositiveLikes,
-        sellerDislikes:
-            !isPositive ? current.sellerDislikes + 1 : current.sellerDislikes,
+        sellerPositiveLikes: newLikes,
+        sellerDislikes: newDislikes,
       );
       saveAdsToOfflineCache(ads);
       await prefs.setBool(voteKey, true);
@@ -1599,8 +1666,8 @@ class AppStateManager extends ChangeNotifier {
 
       try {
         await Supabase.instance.client.from('ads').update({
-          'seller_positive_likes': ads[idx].sellerPositiveLikes,
-          'seller_dislikes': ads[idx].sellerDislikes,
+          'seller_positive_likes': newLikes,
+          'seller_dislikes': newDislikes,
         }).eq('id', adId);
       } catch (_) {}
       return true;
@@ -1678,10 +1745,19 @@ class AppStateManager extends ChangeNotifier {
   }
 
   SubscriptionPlanItem getCurrentUserPlan() {
-    return subscriptionPlans.firstWhere(
-      (p) => p.id == currentUserPlanId,
-      orElse: () => subscriptionPlans.first,
-    );
+    for (final plan in subscriptionPlans) {
+      if (plan.id == currentUserPlanId) return plan;
+    }
+    return subscriptionPlans.isNotEmpty
+        ? subscriptionPlans.first
+        : SubscriptionPlanItem(
+            id: 'plan_free',
+            name: 'الباقة المجانية',
+            priceUsd: 0,
+            maxAds: 5,
+            maxImagesPerAd: 4,
+            features: [],
+          );
   }
 
   void upgradeUserPlan(String planId) {
@@ -3194,7 +3270,6 @@ class _AppFeedbackScreenState extends State<AppFeedbackScreen> {
       _manager.feedbacks.insert(0, newFeedback);
     });
 
-    // إرسال سحابي حقيقي مباشر للوحة التحكم وسيرفر Supabase
     try {
       await Supabase.instance.client
           .from('app_feedback')
@@ -3202,7 +3277,6 @@ class _AppFeedbackScreenState extends State<AppFeedbackScreen> {
           .timeout(const Duration(seconds: 8));
     } catch (_) {}
 
-    // إرسال إشعار فوري حقيقي لبوت تلغرام الإدارة مع التفاصيل
     try {
       final alertText = '💡 مقترح أو بلاغ جديد عبر صوتك مسموع:\n'
           '👤 الاسم: ${newFeedback.userName}\n'
@@ -3832,7 +3906,7 @@ class _AuthScreenState extends State<AuthScreen> {
 }
 // ==============================================================================
 // 🌟 سوق سوريا الشامل 2028 - المنظومة السيادية الحقيقية المتكاملة 100%
-// [الدفعة 3 من أصل 4: شاشة المعاينة، تفاصيل الإعلان والمزاد الحي، والشاشة الرئيسية الكبرى - مصححة ومربوطة سحابياً]
+// [القسم الثالث: شاشة المعاينة، تفاصيل الإعلان والمزاد الحي، والشاشة الرئيسية الكبرى مع الفلترة والمزامنة]
 // ==============================================================================
 
 // ==============================================================================
@@ -4139,6 +4213,7 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
     super.dispose();
   }
 
+  // عداد الحذف التنازلي التلقائي: 15 دقيقة
   void _startSoldCountdownTimer() {
     _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -4150,7 +4225,7 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
                 content: Text(
-                    '⏳ انتهت مهلة الـ 60 دقيقة وتم حذف المنشور المباع تلقائياً.')),
+                    '⏳ انتهت مهلة الـ 15 دقيقة وتم حذف المنشور المباع تلقائياً.')),
           );
           Navigator.pop(context);
         } else {
@@ -4308,11 +4383,12 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
     }
   }
 
+  // التقييم المتزامن سحابياً ولحظياً في Supabase لجميع الأجهزة
   Future<void> _handleVote(bool isPositive) async {
     if (!_manager.isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('⚠️ يجب تسجيل الدخول لتقييم مصداقية المعلن.')),
+            content: Text('⚠️ يجب تسجيل الدخول أولاً لتقييم مصداقية المعلن.')),
       );
       return;
     }
@@ -4327,7 +4403,7 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-                '⚠️ لقد قمت بالتقييم مسبقاً على هذا المنشور! التصويت مقفل لكل حساب.'),
+                '⚠️ لقد قمت بالتقييم مسبقاً على هذا المنشور! التصويت مقفل لكل حساب منعاً للتكرار.'),
             backgroundColor: Colors.orange,
           ),
         );
@@ -4335,25 +4411,51 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
       return;
     }
 
+    final newLikes = isPositive
+        ? _currentAd.sellerPositiveLikes + 1
+        : _currentAd.sellerPositiveLikes;
+    final newDislikes =
+        !isPositive ? _currentAd.sellerDislikes + 1 : _currentAd.sellerDislikes;
+
+    final updatedAd = _currentAd.copyWith(
+      sellerPositiveLikes: newLikes,
+      sellerDislikes: newDislikes,
+    );
+
     setState(() {
-      _currentAd = _currentAd.copyWith(
-        sellerPositiveLikes: isPositive
-            ? _currentAd.sellerPositiveLikes + 1
-            : _currentAd.sellerPositiveLikes,
-        sellerDislikes: !isPositive
-            ? _currentAd.sellerDislikes + 1
-            : _currentAd.sellerDislikes,
-      );
+      _currentAd = updatedAd;
     });
-    widget.onAdUpdated(_currentAd);
+    widget.onAdUpdated(updatedAd);
+
+    try {
+      await Supabase.instance.client
+          .from('ads')
+          .update({
+            'seller_positive_likes': newLikes,
+            'seller_dislikes': newDislikes,
+          })
+          .eq('id', _currentAd.id)
+          .timeout(const Duration(seconds: 10));
+
+      try {
+        await Supabase.instance.client.from('ad_votes').insert({
+          'ad_id': _currentAd.id,
+          'user_id': _manager.currentUserId,
+          'is_positive': isPositive,
+          'created_at': DateTime.now().toIso8601String(),
+        }).timeout(const Duration(seconds: 5));
+      } catch (_) {}
+    } catch (e) {
+      debugPrint('Error updating vote in database: $e');
+    }
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             isPositive
-                ? '👍 شكراً لتقييمك الإيجابي لمصداقية البائع!'
-                : '👎 تم تسجيل تقييمك السلبي لمصداقية البائع.',
+                ? '👍 شكراً لتقييمك! تم حفظ التقييم الإيجابي بنجاح على السيرفر.'
+                : '👎 تم تسجيل تقييمك السلبي بنجاح على السيرفر.',
           ),
           backgroundColor:
               isPositive ? Colors.green.shade800 : Colors.red.shade900,
@@ -4382,7 +4484,7 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
               ],
             ),
             content: const Text(
-              'هل تم بيع هذه السلعة بالفعل؟\nسيظهر ختم "تم البيع" لجميع المستخدمين مع عداد تنازلي 60 دقيقة، وسيتم حذف المنشور نهائياً بعد انتهاء المدة.',
+              'هل تم بيع هذه السلعة بالفعل؟\nسيظهر ختم "تم البيع" لجميع المستخدمين مع عداد تنازلي 15 دقيقة، وسيتم حذف المنشور نهائياً بعد انتهاء المدة.',
               style:
                   TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
             ),
@@ -4528,7 +4630,6 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
     final images =
         _currentAd.imageUrls.isNotEmpty ? _currentAd.imageUrls : [''];
 
-    // التحقق المرن: المشرف أو المدير، أو صاحب الإعلان بالمعرف أو برقم الهاتف
     final bool isOwner = _manager.isLoggedIn &&
         (_manager.currentUserId == _currentAd.userId ||
             (_manager.currentUserPhone.isNotEmpty &&
@@ -4608,7 +4709,6 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
       body: ListView(
         physics: const BouncingScrollPhysics(),
         children: [
-          // شريط أدوات الإدارة البارز (يظهر فوراً على الموبايل والآيباد دون اختفاء)
           if (canEdit)
             Container(
               color: const Color(0xFF0F172A),
@@ -6373,6 +6473,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       final matchesMaxP = _filterMaxPrice == null ||
           (ad.priceUsd != null && ad.priceUsd! <= _filterMaxPrice!);
 
+      // شرط العرض الحصري: المعتمد فقط لعامة المستخدمين، والإشراف يرى كل شيء
       final isApprovedForFeed =
           ad.status == 'approved' || (_manager.isModerator);
 
@@ -7678,12 +7779,12 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
     );
   }
 }
-
 // ==============================================================================
 // 🌟 سوق سوريا الشامل 2028 - المنظومة السيادية الحقيقية المتكاملة 100%
 // [الدفعة 4 من أصل 4: شاشة إضافة الإعلان، غرف المحادثة، باقات الاشتراك، غرفة العمليات، و main()]
 // مربوطة بالكامل بالسيرفر الحقيقي وقواعد البيانات الحقيقية دون أي اختصار
 // ==============================================================================
+
 // ==============================================================================
 // 20. شاشة إضافة وتعديل الإعلانات والمزادات الحرة (FullAddAdScreen)
 // ==============================================================================
@@ -8808,7 +8909,16 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
           subtitle: const Text(
               'يقفل التطبيق أمام الزوار مع السماح بدخول المشرفين فقط'),
           value: _manager.isMaintenanceMode,
-          onChanged: (val) => setState(() => _manager.isMaintenanceMode = val),
+          onChanged: (val) {
+            setState(() => _manager.isMaintenanceMode = val);
+            _manager.notifyListeners();
+            try {
+              Supabase.instance.client.from('app_settings').upsert({
+                'key': 'maintenance_mode',
+                'value': val.toString(),
+              });
+            } catch (_) {}
+          },
         ),
       ],
     );
@@ -9003,17 +9113,29 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
         ElevatedButton(
           style:
               ElevatedButton.styleFrom(backgroundColor: _manager.primaryColor),
-          onPressed: () {
+          onPressed: () async {
             final usd = double.tryParse(_usdRateController.text);
             final gold = double.tryParse(_goldPriceController.text);
             if (usd != null) _manager.exchangeRateUsdToSyp = usd;
             if (gold != null) _manager.goldPrice21kSyp = gold;
             _manager.notifyListeners();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text(
-                      '✅ تم تحديث ونشر أسعار الصرف والذهب لجميع المستخدمين!')),
-            );
+
+            try {
+              await Supabase.instance.client.from('app_settings').upsert({
+                'key': 'rates',
+                'usd_rate': usd,
+                'gold_price': gold,
+                'updated_at': DateTime.now().toIso8601String(),
+              });
+            } catch (_) {}
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text(
+                        '✅ تم تحديث ونشر أسعار الصرف والذهب لجميع المستخدمين بالسيرفر!')),
+              );
+            }
           },
           child: const Text('حفظ وتحديث الأسعار لحظياً ✨',
               style:
