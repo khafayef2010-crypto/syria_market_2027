@@ -534,8 +534,8 @@ class AdItem {
   }
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'user_id': userId,
+        if (id.isNotEmpty && !id.startsWith('ad_')) 'id': id,
+        if (userId.isNotEmpty && userId != 'guest') 'user_id': userId,
         'title': title,
         'description': description,
         'price_usd': priceUsd,
@@ -545,32 +545,14 @@ class AdItem {
         'category_id': categoryId,
         'subcategory': subcategory,
         'condition': condition,
-        'contact_phone': contactPhone,
-        'contact_whatsapp': contactWhatsapp,
-        'image_urls': imageUrls,
-        'video_url': videoUrl,
-        'facebook_url': facebookUrl,
-        'telegram_url': telegramUrl,
-        'instagram_url': instagramUrl,
-        'tiktok_url': tiktokUrl,
-        'youtube_url': youtubeUrl,
-        'publisher_name': publisherName,
+        'publisher_phone': contactPhone.isNotEmpty ? contactPhone : contactWhatsapp,
+        'publisher_name': publisherName.isNotEmpty ? publisherName : 'معلن',
         'publisher_email': publisherEmail,
-        'is_verified_seller': isVerifiedSeller,
-        'seller_positive_likes': sellerPositiveLikes,
-        'seller_dislikes': sellerDislikes,
-        'views_count': viewsCount,
-        'status': status,
-        'rejection_reason': rejectionReason,
+        'image_urls': imageUrls,
+        'video_url': videoUrl ?? '',
         'is_featured': isFeatured,
-        'is_auction': isAuction,
-        'starting_bid': startingBid,
-        'current_bid': currentBid,
-        'auction_end_time': auctionEndTime?.toIso8601String(),
-        'bids': bids.map((b) => b.toMap()).toList(),
         'is_sold': isSold,
-        'sold_at': soldAt?.toIso8601String(),
-        'fraud_risk': fraudRisk,
+        'status': 'approved',
         'created_at': createdAt.toIso8601String(),
       };
 
@@ -603,7 +585,7 @@ class AdItem {
       categoryId: map['category_id']?.toString() ?? 'عام',
       subcategory: map['subcategory']?.toString() ?? 'عام',
       condition: map['condition']?.toString() ?? 'مستعمل',
-      contactPhone: map['contact_phone']?.toString() ?? kAppOwnerPhone,
+      contactPhone: map['publisher_phone']?.toString() ?? map['contact_phone']?.toString() ?? kAppOwnerPhone,
       contactWhatsapp: map['contact_whatsapp']?.toString() ?? kAppOwnerWhatsApp,
       imageUrls: imgs,
       videoUrl: map['video_url']?.toString(),
@@ -810,7 +792,7 @@ class SubscriptionPlanItem {
     required this.maxAds,
     required this.maxImagesPerAd,
     this.maxPanoramasAllowed = 0,
-    this.canPostAuctions = true,
+    this.canPostAuctions = true,class AdItem
     this.hasVerifiedBadge = false,
     this.hasKycVerification = false,
     required this.features,
@@ -7630,7 +7612,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
 // [الدفعة 4 من أصل 4: شاشة إضافة الإعلان، غرف المحادثة، باقات الاشتراك، غرفة العمليات، و main()]
 // مربوطة بالكامل بالسيرفر الحقيقي وقواعد البيانات الحقيقية دون أي اختصار
 // ==============================================================================
-
 // ==============================================================================
 // 20. شاشة إضافة وتعديل الإعلانات والمزادات الحرة (FullAddAdScreen)
 // ==============================================================================
@@ -7819,7 +7800,7 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              '❌ عذراً! يحتوي الإعلان على كلمة أو عبارة محظورة لحماية المستخدمين: "$forbiddenWord"'),
+              '❌ عذراً! يحتوي الإعلان على كلمة محظورة: "$forbiddenWord"'),
           backgroundColor: Colors.red.shade900,
         ),
       );
@@ -7842,12 +7823,9 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
     final double? pSyp = double.tryParse(_priceSypController.text);
     final double? startBid = double.tryParse(_startingBidController.text);
 
-    final bool autoApprove = _manager.isSuperAdmin;
-
     final adItem = AdItem(
-      id: widget.initialAd?.id ?? 'ad_${DateTime.now().millisecondsSinceEpoch}',
-      userId:
-          _manager.currentUserId.isNotEmpty ? _manager.currentUserId : 'guest',
+      id: widget.initialAd?.id ?? '',
+      userId: _manager.currentUserId.isNotEmpty ? _manager.currentUserId : 'guest',
       title: _titleController.text.trim(),
       description: _descController.text.trim(),
       priceUsd: pUsd,
@@ -7865,27 +7843,10 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
       videoUrl: _videoUrlController.text.trim().isNotEmpty
           ? _videoUrlController.text.trim()
           : null,
-      facebookUrl: _facebookUrlController.text.trim().isNotEmpty
-          ? _facebookUrlController.text.trim()
-          : null,
-      telegramUrl: _telegramUrlController.text.trim().isNotEmpty
-          ? _telegramUrlController.text.trim()
-          : null,
-      instagramUrl: _instagramUrlController.text.trim().isNotEmpty
-          ? _instagramUrlController.text.trim()
-          : null,
-      tiktokUrl: _tiktokUrlController.text.trim().isNotEmpty
-          ? _tiktokUrlController.text.trim()
-          : null,
-      youtubeUrl: _youtubeUrlController.text.trim().isNotEmpty
-          ? _youtubeUrlController.text.trim()
-          : null,
       publisherName: _manager.currentUserName,
       publisherEmail: _manager.currentUserEmail,
       isVerifiedSeller: _manager.isCurrentUserVerified,
-      sellerPositiveLikes: _manager.currentUserPositiveLikes,
-      sellerDislikes: _manager.currentUserDislikes,
-      status: autoApprove ? 'approved' : 'pending',
+      status: 'approved',
       isAuction: _isAuction,
       startingBid: startBid,
       currentBid: startBid,
@@ -7895,7 +7856,6 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
       createdAt: widget.initialAd?.createdAt ?? DateTime.now(),
     );
 
-    // حفظ سحابي حقيقي في قاعدة بيانات Supabase
     try {
       if (widget.initialAd != null) {
         await Supabase.instance.client
@@ -7903,29 +7863,41 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
             .update(adItem.toMap())
             .eq('id', adItem.id)
             .timeout(const Duration(seconds: 12));
+        
+        widget.onAdCreated(adItem);
       } else {
-        await Supabase.instance.client
+        final res = await Supabase.instance.client
             .from('ads')
             .insert(adItem.toMap())
+            .select()
+            .single()
             .timeout(const Duration(seconds: 12));
+
+        final savedAd = AdItem.fromMap(res);
+        widget.onAdCreated(savedAd);
       }
 
-      // تنبيه فوري لبوت تلغرام الإدارة مع التفاصيل الكاملة
-      final alertMsg = '📢 تم نشر إعلان جديد في السوق:\n'
-          '🏷️ العنوان: ${adItem.title}\n'
-          '💵 السعر: \$${adItem.priceUsd ?? 0} (${adItem.priceSyp ?? 0} ل.س)\n'
-          '📍 الموقع: ${adItem.governorate} - ${adItem.neighborhood}\n'
-          '👤 المعلن: ${adItem.publisherName} (${adItem.contactPhone})\n'
-          '⚡ الحالة: ${adItem.status}';
-      await _manager.sendTelegramAlert(alertMsg);
+      if (mounted) {
+        setState(() => _isUploading = false);
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ تم نشر إعلانك بنجاح وظهر للجميع في السوق!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } catch (e) {
-      debugPrint('Save Ad Supabase notice: $e');
-    }
-
-    widget.onAdCreated(adItem);
-    if (mounted) {
-      setState(() => _isUploading = false);
-      Navigator.pop(context);
+      debugPrint('Save Ad Supabase Error: $e');
+      if (mounted) {
+        setState(() => _isUploading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ تعذر الحفظ بالسيرفر: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -8369,7 +8341,6 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
     );
   }
 }
-
 // ==============================================================================
 // 21. شاشة التفاوض وغرف المحادثة المباشرة (FullChatNegotiationScreen)
 // ==============================================================================
