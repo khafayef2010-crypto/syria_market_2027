@@ -152,7 +152,6 @@ class _SyrianFlagPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-
 // ==============================================================================
 // 3. نماذج البيانات الحقيقية المتصلة بقواعد البيانات السحابية (Cloud Models)
 // ==============================================================================
@@ -792,7 +791,7 @@ class SubscriptionPlanItem {
     required this.maxAds,
     required this.maxImagesPerAd,
     this.maxPanoramasAllowed = 0,
-    this.canPostAuctions = true,class AdItem
+    this.canPostAuctions = true,
     this.hasVerifiedBadge = false,
     this.hasKycVerification = false,
     required this.features,
