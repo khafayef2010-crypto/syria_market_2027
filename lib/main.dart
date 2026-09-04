@@ -8675,13 +8675,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
 // [القسم الرابع - الدفعة 1 من 2: شاشة النشر والتعديل، المحادثة والتفاوض، والباقات وبوابات الدفع]
 // ==============================================================================
 
-import 'dart:async';
-import 'dart:typed_data';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 // ==============================================================================
 // 22. شاشة إضافة وتعديل الإعلانات مع قفل السوشيال ميديا للمشتركين (FullAddAdScreen)
 // ==============================================================================
@@ -10006,13 +9999,6 @@ class FullSubscriptionPlansScreen extends StatelessWidget {
 // 🌟 سوق سوريا الشامل 2028 - المنظومة السيادية الحقيقية المتكاملة 100%
 // [القسم الرابع - الدفعة 2 من 2: غرفة العمليات الشاملة، شاشة الصيانة، ودالة main]
 // ==============================================================================
-
-import 'dart:math';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 
 // ==============================================================================
 // 25. غرفة العمليات المركزية السيادية الشاملة (FullAdminPanelScreen)
