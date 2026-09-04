@@ -5319,7 +5319,7 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
       builder: (ctx) => Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          mainAxisSize: dynamic,
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
