@@ -6111,10 +6111,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
               MaterialPageRoute(builder: (ctx) => AppFeedbackScreen()));
         },
         onOpenPlans: () {
-          Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (ctx) => FullSubscriptionPlansScreen()));
+          _showContactAdminDialog();
         },
         onOpenAdminPanel: () {
           Navigator.push(
@@ -7507,89 +7504,89 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
           const SizedBox(height: 12),
         ],
         ListTile(
-      shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        tileColor: _manager.secondaryColor.withOpacity(0.15),
-        leading: Icon(Icons.lightbulb, color: _manager.secondaryColor),
-        title: const Text('صوتك مسموع 💡 - اقترح وطوّر التطبيق',
-            style: TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: const Text('أرسل أفكارك وملاحظاتك مباشرةً لصاحب التطبيق'),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-        onTap: () => Navigator.push(context,
-            MaterialPageRoute(builder: (ctx) => AppFeedbackScreen())),
-      ),
-      const SizedBox(height: 10),
-      if (!_manager.isLoggedIn)
-        ListTile(
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          tileColor: _manager.primaryColor.withOpacity(0.1),
-          leading: Icon(Icons.login, color: _manager.primaryColor),
-          title: const Text('تسجيل الدخول / إنشاء حساب جديد',
+          tileColor: _manager.secondaryColor.withOpacity(0.15),
+          leading: Icon(Icons.lightbulb, color: _manager.secondaryColor),
+          title: const Text('صوتك مسموع 💡 - اقترح وطوّر التطبيق',
               style: TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: const Text('تسجيل سريع مع ميزة استرجاع كلمة المرور'),
+          subtitle: const Text('أرسل أفكارك وملاحظاتك مباشرةً لصاحب التطبيق'),
           trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-          onTap: () => Navigator.push(
-              context, MaterialPageRoute(builder: (ctx) => AuthScreen())),
-        )
-      else
-        ListTile(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          tileColor: Colors.red.withOpacity(0.08),
-          leading: const Icon(Icons.logout, color: Colors.red),
-          title: const Text('تسجيل الخروج',
-              style:
-                  TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-          onTap: () async {
-            await _manager.logoutUser();
-            setState(() {
-              _favoriteAdIds.clear();
-              _userChatThreads.clear();
-            });
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('تم تسجيل الخروج بنجاح.')));
-            }
-          },
+          onTap: () => Navigator.push(context,
+              MaterialPageRoute(builder: (ctx) => AppFeedbackScreen())),
         ),
-      const SizedBox(height: 10),
-      ListTile(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        tileColor: Colors.grey.withOpacity(0.06),
-        leading:
-            Icon(Icons.workspace_premium, color: _manager.secondaryColor),
-        title: const Text('ترقية الباقة والاشتراكات VIP'),
-        subtitle: const Text('ميزات حصرية ونشر غير محدود'),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-        onTap: () {
-          _showContactAdminDialog();
-        },
-      ),
-      if (_manager.isModerator) ...[
+        const SizedBox(height: 10),
+        if (!_manager.isLoggedIn)
+          ListTile(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            tileColor: _manager.primaryColor.withOpacity(0.1),
+            leading: Icon(Icons.login, color: _manager.primaryColor),
+            title: const Text('تسجيل الدخول / إنشاء حساب جديد',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: const Text('تسجيل سريع مع ميزة استرجاع كلمة المرور'),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+            onTap: () => Navigator.push(
+                context, MaterialPageRoute(builder: (ctx) => AuthScreen())),
+          )
+        else
+          ListTile(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            tileColor: Colors.red.withOpacity(0.08),
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text('تسجيل الخروج',
+                style:
+                    TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            onTap: () async {
+              await _manager.logoutUser();
+              setState(() {
+                _favoriteAdIds.clear();
+                _userChatThreads.clear();
+              });
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('تم تسجيل الخروج بنجاح.')));
+              }
+            },
+          ),
         const SizedBox(height: 10),
         ListTile(
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          tileColor: Colors.red.withOpacity(0.08),
-          leading: const Icon(Icons.admin_panel_settings, color: Colors.red),
-          title: const Text('غرفة العمليات ولوحة تحكم المشرفين 🛡️',
-              style: TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: const Text(
-              'موافقة الإعلانات، تدقيق إيصالات شام كاش وبينانس، إدارة الأقسام والأسعار'),
+          tileColor: Colors.grey.withOpacity(0.06),
+          leading:
+              Icon(Icons.workspace_premium, color: _manager.secondaryColor),
+          title: const Text('ترقية الباقة والاشتراكات VIP'),
+          subtitle: const Text('ميزات حصرية ونشر غير محدود'),
           trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (ctx) => const FullAdminPanelScreen(),
+          onTap: () {
+            _showContactAdminDialog();
+          },
+        ),
+        if (_manager.isModerator) ...[
+          const SizedBox(height: 10),
+          ListTile(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            tileColor: Colors.red.withOpacity(0.08),
+            leading: const Icon(Icons.admin_panel_settings, color: Colors.red),
+            title: const Text('غرفة العمليات ولوحة تحكم المشرفين 🛡️',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: const Text(
+                'موافقة الإعلانات، تدقيق إيصالات شام كاش وبينانس، إدارة الأقسام والأسعار'),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (ctx) => const FullAdminPanelScreen(),
+              ),
             ),
           ),
-        ),
+        ],
       ],
-    ],
-  );
-}
+    );
+  }
 
   void _openAddAdScreen() {
     Navigator.push(
