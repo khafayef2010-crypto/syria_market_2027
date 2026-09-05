@@ -551,22 +551,9 @@ class AdItem {
         'publisher_email': publisherEmail,
         'image_urls': imageUrls,
         'video_url': videoUrl ?? '',
-        'facebook_url': facebookUrl ?? '',
-        'telegram_url': telegramUrl ?? '',
-        'instagram_url': instagramUrl ?? '',
-        'tiktok_url': tiktokUrl ?? '',
-        'youtube_url': youtubeUrl ?? '',
         'is_featured': isFeatured,
         'is_sold': isSold,
-        'sold_at': soldAt?.toIso8601String(),
-        'seller_positive_likes': sellerPositiveLikes,
-        'seller_dislikes': sellerDislikes,
-        'is_auction': isAuction,
-        'starting_bid': startingBid,
-        'current_bid': currentBid,
-        'auction_end_time': auctionEndTime?.toIso8601String(),
-        'status': status,
-        'rejection_reason': rejectionReason,
+        'status': 'approved',
         'created_at': createdAt.toIso8601String(),
       };
 
@@ -1244,6 +1231,38 @@ class AppStateManager extends ChangeNotifier {
     }, onError: (err) {
       debugPrint('Realtime Banners Error: $err');
     });
+
+    // 3. الاستماع الحي لضبط وضع العرض (دمج/تقسيم البانوراما) وأسعار الصرف
+    try {
+      Supabase.instance.client.from('app_settings').stream(
+          primaryKey: ['key']).listen((List<Map<String, dynamic>> data) {
+        for (var row in data) {
+          if (row['key'] == 'rates') {
+            if (row['usd_rate'] != null) {
+              exchangeRateUsdToSyp = (row['usd_rate'] as num).toDouble();
+            }
+            if (row['gold_price'] != null) {
+              goldPrice21kSyp = (row['gold_price'] as num).toDouble();
+            }
+          } else if (row['key'] == 'banner_settings') {
+            if (row['mode'] == 'fullPanorama') {
+              bannerDisplayMode = BannerDisplayLayoutMode.fullPanorama;
+            } else if (row['mode'] == 'dualGrid') {
+              bannerDisplayMode = BannerDisplayLayoutMode.dualGrid;
+            }
+            if (row['interval_seconds'] != null) {
+              bannerDefaultIntervalSeconds =
+                  (row['interval_seconds'] as num).toInt();
+            }
+          } else if (row['key'] == 'maintenance_mode') {
+            isMaintenanceMode = row['value'] == 'true';
+          }
+        }
+        notifyListeners();
+      }, onError: (e) {
+        debugPrint('Settings Stream Notice: $e');
+      });
+    } catch (_) {}
   }
 
   @override
@@ -4189,6 +4208,7 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
   final TextEditingController _commentController = TextEditingController();
   bool _isPlacingBid = false;
   List<AdCommentItem> _adComments = [];
+  StreamSubscription? _commentsSubscription;
   bool _isLoadingComments = false;
   Timer? _countdownTimer;
 
@@ -4205,6 +4225,7 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
 
   @override
   void dispose() {
+    _commentsSubscription?.cancel(); // 👈 أضف هذا السطر هنا
     _countdownTimer?.cancel();
     _pageController.dispose();
     _zoomController.dispose();
@@ -4235,14 +4256,65 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
     });
   }
 
-  Future<void> _loadComments() async {
+// استبدل دالة _loadComments القديمة بهذه الدالة اللحظية:
+  void _loadComments() {
     setState(() => _isLoadingComments = true);
-    final cmts = await _manager.fetchAdComments(_currentAd.id);
-    if (mounted) {
-      setState(() {
-        _adComments = cmts;
-        _isLoadingComments = false;
-      });
+    _commentsSubscription?.cancel();
+    _commentsSubscription = Supabase.instance.client
+        .from('ad_comments')
+        .stream(primaryKey: ['id'])
+        .eq('ad_id', _currentAd.id)
+        .order('created_at', ascending: true)
+        .listen((List<Map<String, dynamic>> data) {
+          if (mounted) {
+            setState(() {
+              _adComments = data.map((m) => AdCommentItem.fromMap(m)).toList();
+              _isLoadingComments = false;
+            });
+          }
+        }, onError: (err) {
+          debugPrint('Comments Stream Error: $err');
+          if (mounted) setState(() => _isLoadingComments = false);
+        });
+  }
+
+  // واستبدل دالة _submitComment القديمة بهذه الدالة الحقيقية:
+  Future<void> _submitComment() async {
+    final text = _commentController.text.trim();
+    if (text.isEmpty) return;
+
+    final commentMap = {
+      'id': 'cm_${DateTime.now().millisecondsSinceEpoch}',
+      'ad_id': _currentAd.id,
+      'user_id': _manager.currentUserId.isNotEmpty
+          ? _manager.currentUserId
+          : 'guest_${DateTime.now().millisecondsSinceEpoch % 10000}',
+      'user_name': _manager.currentUserName.isNotEmpty
+          ? _manager.currentUserName
+          : 'مستخدم',
+      'user_phone': _manager.currentUserPhone,
+      'content': text,
+      'comment': text, // لضمان التطابق مع أي اسم عامود في جدولك
+      'created_at': DateTime.now().toIso8601String(),
+    };
+
+    _commentController.clear();
+    FocusScope.of(context).unfocus();
+
+    try {
+      await Supabase.instance.client
+          .from('ad_comments')
+          .insert(commentMap)
+          .timeout(const Duration(seconds: 8));
+
+      // إذا كان Stream متأخر قليلاً، نضيفه محلياً فوراً ليظهر بالثانية نفسها:
+      if (!_adComments.any((c) => c.id == commentMap['id'])) {
+        setState(() {
+          _adComments.add(AdCommentItem.fromMap(commentMap));
+        });
+      }
+    } catch (e) {
+      debugPrint('Comment insert error: $e');
     }
   }
 
@@ -5580,6 +5652,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
 
     _manager.loadCachedDataOffline();
     _manager.loadPersistedSession();
+    _manager.initRealtimeListeners();
 
     _initLiveAdsFromSupabase();
     _fetchUserFavorites();
@@ -8774,18 +8847,6 @@ class _FullChatNegotiationScreenState extends State<FullChatNegotiationScreen> {
   }
 }
 
-// ==============================================================================
-// 23. غرفة العمليات المركزية للإدارة بقطاعاتها الـ 9 (FullAdminPanelScreen)
-// ==============================================================================
-class FullAdminPanelScreen extends StatefulWidget {
-  final int initialTab;
-
-  const FullAdminPanelScreen({Key? key, this.initialTab = 0}) : super(key: key);
-
-  @override
-  State<FullAdminPanelScreen> createState() => _FullAdminPanelScreenState();
-}
-
 class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
     with SingleTickerProviderStateMixin {
   final AppStateManager _manager = AppStateManager();
@@ -8798,7 +8859,7 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
   void initState() {
     super.initState();
     _tabController =
-        TabController(length: 6, vsync: this, initialIndex: widget.initialTab);
+        TabController(length: 7, vsync: this, initialIndex: widget.initialTab);
     _usdRateController.text = _manager.exchangeRateUsdToSyp.toStringAsFixed(0);
     _goldPriceController.text = _manager.goldPrice21kSyp.toStringAsFixed(0);
   }
@@ -8842,6 +8903,7 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
           unselectedLabelColor: Colors.white70,
           tabs: [
             const Tab(text: 'لوحة التحكم 📊'),
+            const Tab(text: 'إدارة البانوراما 🖼️'),
             Tab(text: 'مراجعة الإعلانات (${pendingAds.length}) ⏳'),
             Tab(text: 'تدقيق المدفوعات (${pendingPayments.length}) 💳'),
             const Tab(text: 'أسعار الصرف والذهب 🪙'),
@@ -8854,6 +8916,7 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
         controller: _tabController,
         children: [
           _buildOverviewTab(),
+          _buildBannersManagementTab(),
           _buildAdReviewTab(pendingAds),
           _buildPaymentAuditTab(pendingPayments),
           _buildRatesSettingsTab(),
@@ -8861,6 +8924,394 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
           _buildFeedbacksTab(),
         ],
       ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // تبويب إدارة البانوراما: دمج، تقسيم، تسريع، رفع +15 صورة، وعداد تنازلي للاشتراك
+  // ---------------------------------------------------------------------------
+  Widget _buildBannersManagementTab() {
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          color: const Color(0xFF0F172A),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.view_carousel,
+                        color: Color(0xFFD4AF37), size: 22),
+                    SizedBox(width: 8),
+                    Text(
+                      'شكل عرض البانوراما في الرئيسية',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Text('مربعين منفصلين 🔲🔲',
+                            style: TextStyle(fontSize: 11)),
+                        selected: _manager.bannerDisplayMode ==
+                            BannerDisplayLayoutMode.dualGrid,
+                        selectedColor: const Color(0xFFD4AF37),
+                        onSelected: (val) async {
+                          if (val) {
+                            setState(() => _manager.bannerDisplayMode =
+                                BannerDisplayLayoutMode.dualGrid);
+                            _manager.notifyListeners();
+                            try {
+                              await Supabase.instance.client
+                                  .from('app_settings')
+                                  .upsert({
+                                'key': 'banner_settings',
+                                'mode': 'dualGrid',
+                                'interval_seconds':
+                                    _manager.bannerDefaultIntervalSeconds,
+                              });
+                            } catch (_) {}
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Text('دمج شريط كامل 🖼️',
+                            style: TextStyle(fontSize: 11)),
+                        selected: _manager.bannerDisplayMode ==
+                            BannerDisplayLayoutMode.fullPanorama,
+                        selectedColor: const Color(0xFFD4AF37),
+                        onSelected: (val) async {
+                          if (val) {
+                            setState(() => _manager.bannerDisplayMode =
+                                BannerDisplayLayoutMode.fullPanorama);
+                            _manager.notifyListeners();
+                            try {
+                              await Supabase.instance.client
+                                  .from('app_settings')
+                                  .upsert({
+                                'key': 'banner_settings',
+                                'mode': 'fullPanorama',
+                                'interval_seconds':
+                                    _manager.bannerDefaultIntervalSeconds,
+                              });
+                            } catch (_) {}
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('سرعة تقليب الصور:',
+                        style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    Text(
+                      '${_manager.bannerDefaultIntervalSeconds} ثوانٍ',
+                      style: const TextStyle(
+                          color: Color(0xFFD4AF37),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13),
+                    ),
+                  ],
+                ),
+                Slider(
+                  value: _manager.bannerDefaultIntervalSeconds
+                      .toDouble()
+                      .clamp(1.0, 10.0),
+                  min: 1.0,
+                  max: 10.0,
+                  divisions: 9,
+                  activeColor: const Color(0xFFD4AF37),
+                  onChanged: (v) {
+                    setState(() =>
+                        _manager.bannerDefaultIntervalSeconds = v.toInt());
+                  },
+                  onChangeEnd: (v) async {
+                    _manager.notifyListeners();
+                    try {
+                      await Supabase.instance.client
+                          .from('app_settings')
+                          .upsert({
+                        'key': 'banner_settings',
+                        'mode': _manager.bannerDisplayMode ==
+                                BannerDisplayLayoutMode.fullPanorama
+                            ? 'fullPanorama'
+                            : 'dualGrid',
+                        'interval_seconds': v.toInt(),
+                      });
+                    } catch (_) {}
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF0284C7),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          icon: const Icon(Icons.add_photo_alternate, color: Colors.white),
+          label: const Text('رفع بانوراما جديدة (حتى 15 صورة) 🚀',
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          onPressed: () => _showAddCustomBannerDialog(),
+        ),
+        const SizedBox(height: 16),
+        const Text('البانورامات المعروضة حالياً مع العداد التنازلي:',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        const SizedBox(height: 8),
+        ..._manager.banners.map((b) {
+          final remaining = b.expiresAt.difference(DateTime.now());
+          final days = remaining.inDays;
+          final hours = remaining.inHours % 24;
+          final isExpired = remaining.isNegative;
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            child: ListTile(
+              leading: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: SizedBox(
+                  width: 50,
+                  height: 50,
+                  child: AppSmartImage(imageUrl: b.imageUrl, fit: BoxFit.cover),
+                ),
+              ),
+              title: Text(b.title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 13),
+                  maxLines: 1),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                      'عدد الصور: ${b.imageUrls.length} صور • المدة: ${b.displayDurationSeconds} ثوانٍ',
+                      style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Icon(Icons.timer,
+                          size: 12,
+                          color: isExpired ? Colors.red : Colors.green),
+                      const SizedBox(width: 4),
+                      Text(
+                        isExpired
+                            ? 'انتهى الاشتراك ❌'
+                            : 'متبقي للاشتراك: $days يوم و $hours ساعة ⏳',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: isExpired ? Colors.red : Colors.green.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                tooltip: 'حذف البانوراما',
+                onPressed: () async {
+                  try {
+                    await Supabase.instance.client
+                        .from('banners')
+                        .delete()
+                        .eq('id', b.id);
+                  } catch (_) {}
+                  setState(
+                      () => _manager.banners.removeWhere((x) => x.id == b.id));
+                  _manager.saveBannersToOfflineCache(_manager.banners);
+                },
+              ),
+            ),
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  void _showAddCustomBannerDialog() {
+    final titleController = TextEditingController(text: 'عرض VIP خاص');
+    final subtitleController = TextEditingController(text: 'سوق سوريا الشامل');
+    int subscriptionDays = 7;
+    List<Uint8List> selectedImages = [];
+    bool isUploading = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('إضافة بانوراما إعلانية بمواصفات خاصة 🌟',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 15)),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(
+                          labelText: 'عنوان البانوراما الرئيسي',
+                          border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: subtitleController,
+                      decoration: const InputDecoration(
+                          labelText: 'النص الفرعي أو العرض',
+                          border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text('مدة صلاحية الاشتراك (عداد تنازلي):',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        ChoiceChip(
+                          label: const Text('24 ساعة (يومي)'),
+                          selected: subscriptionDays == 1,
+                          onSelected: (v) =>
+                              setModalState(() => subscriptionDays = 1),
+                        ),
+                        const SizedBox(width: 6),
+                        ChoiceChip(
+                          label: const Text('أسبوع (7 أيام)'),
+                          selected: subscriptionDays == 7,
+                          onSelected: (v) =>
+                              setModalState(() => subscriptionDays = 7),
+                        ),
+                        const SizedBox(width: 6),
+                        ChoiceChip(
+                          label: const Text('شهر (30 يوم)'),
+                          selected: subscriptionDays == 30,
+                          onSelected: (v) =>
+                              setModalState(() => subscriptionDays = 30),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F172A)),
+                      icon:
+                          const Icon(Icons.photo_library, color: Colors.white),
+                      label: Text(
+                          'اختيار الصور من المعرض (${selectedImages.length} محددة)',
+                          style: const TextStyle(color: Colors.white)),
+                      onPressed: () async {
+                        final picker = ImagePicker();
+                        final picked = await picker.pickMultiImage(
+                            imageQuality: 75, maxWidth: 1200);
+                        if (picked.isNotEmpty) {
+                          List<Uint8List> bytes = [];
+                          for (var f in picked) {
+                            bytes.add(await f.readAsBytes());
+                          }
+                          setModalState(() => selectedImages = bytes);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFD4AF37)),
+                        onPressed: (selectedImages.isEmpty || isUploading)
+                            ? null
+                            : () async {
+                                setModalState(() => isUploading = true);
+                                final urls = await StorageUploadService
+                                    .uploadMultipleImageBytes(
+                                  bucketName: kStorageBucketBanners,
+                                  imagesBytesList: selectedImages,
+                                  prefix: 'pan',
+                                );
+
+                                if (urls.isNotEmpty) {
+                                  final newBanner = BannerItem(
+                                    id: 'bn_${DateTime.now().millisecondsSinceEpoch}',
+                                    imageUrls: urls,
+                                    title: titleController.text.trim(),
+                                    subtitle: subtitleController.text.trim(),
+                                    badgeText: 'VIP ★',
+                                    badgeColor: const Color(0xFFD4AF37),
+                                    displayDurationSeconds:
+                                        _manager.bannerDefaultIntervalSeconds,
+                                    expiresAt: DateTime.now()
+                                        .add(Duration(days: subscriptionDays)),
+                                    isActive: true,
+                                  );
+
+                                  try {
+                                    await Supabase.instance.client
+                                        .from('banners')
+                                        .insert(newBanner.toMap());
+                                  } catch (_) {}
+
+                                  setState(() {
+                                    _manager.banners.insert(0, newBanner);
+                                  });
+                                  _manager.saveBannersToOfflineCache(
+                                      _manager.banners);
+                                  Navigator.pop(ctx);
+                                }
+                              },
+                        child: isUploading
+                            ? const CircularProgressIndicator(
+                                color: Colors.black)
+                            : const Text('نشر وتفعيل البانوراما فوراً 🚀',
+                                style: TextStyle(
+                                    color: Color(0xFF0F172A),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -9089,8 +9540,10 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: [
-        const Text('تحديث أسعار الصرف والذهب اللحظية في التطبيق:',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        const Text(
+          'تحديث أسعار الصرف والذهب اللحظية في التطبيق:',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        ),
         const SizedBox(height: 12),
         TextField(
           controller: _usdRateController,
@@ -9111,11 +9564,17 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
         ),
         const SizedBox(height: 16),
         ElevatedButton(
-          style:
-              ElevatedButton.styleFrom(backgroundColor: _manager.primaryColor),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _manager.primaryColor,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
           onPressed: () async {
-            final usd = double.tryParse(_usdRateController.text);
-            final gold = double.tryParse(_goldPriceController.text);
+            final usd = double.tryParse(_usdRateController.text.trim());
+            final gold = double.tryParse(_goldPriceController.text.trim());
+
             if (usd != null) _manager.exchangeRateUsdToSyp = usd;
             if (gold != null) _manager.goldPrice21kSyp = gold;
             _manager.notifyListeners();
@@ -9126,20 +9585,29 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
                 'usd_rate': usd,
                 'gold_price': gold,
                 'updated_at': DateTime.now().toIso8601String(),
-              });
-            } catch (_) {}
+              }).timeout(const Duration(seconds: 10));
+            } catch (e) {
+              debugPrint('Error updating rates in Supabase: $e');
+            }
 
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                    content: Text(
-                        '✅ تم تحديث ونشر أسعار الصرف والذهب لجميع المستخدمين بالسيرفر!')),
+                  content: Text(
+                      '✅ تم تحديث ونشر أسعار الصرف والذهب لجميع الأجهزة بالسيرفر!'),
+                  backgroundColor: Colors.green,
+                ),
               );
             }
           },
-          child: const Text('حفظ وتحديث الأسعار لحظياً ✨',
-              style:
-                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          child: const Text(
+            'حفظ وتحديث الأسعار لحظياً ✨',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
         ),
       ],
     );
