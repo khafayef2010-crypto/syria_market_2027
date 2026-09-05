@@ -207,13 +207,23 @@ class PaymentAuditRecord {
   final String userId;
   final String userName;
   final String userPhone;
+  final String userEmail;
   final String userGovernorate;
+  final String requestType; // 'plan_subscription' أو 'panorama_booking'
   final String planId;
   final String planName;
+  final String durationLabel; // مثلاً: 'شهري (30 يوم)' أو 'سنوي' أو '48 ساعة'
+  final int durationHours; // إجمالي الساعات للحساب الزمني الدقيق
   final String gateway;
   final double amountUsd;
   final double amountSyp;
   final String transactionRefOrTxId;
+  final String? receiptImageUrl; // صورة إيصال الدفع الحقيقية 📸
+  final List<String>
+      bannerImages; // صور البانوراما في حال كان الطلب حجز بانوراما
+  final String bannerTitle;
+  final String bannerSubtitle;
+  final String bannerLinkUrl;
   String status;
   String? adminRejectionReason;
   final DateTime createdAt;
@@ -224,13 +234,22 @@ class PaymentAuditRecord {
     required this.userId,
     required this.userName,
     required this.userPhone,
+    this.userEmail = '',
     required this.userGovernorate,
+    this.requestType = 'plan_subscription',
     required this.planId,
     required this.planName,
+    this.durationLabel = 'شهري (30 يوم)',
+    this.durationHours = 720,
     required this.gateway,
     required this.amountUsd,
     required this.amountSyp,
     required this.transactionRefOrTxId,
+    this.receiptImageUrl,
+    this.bannerImages = const [],
+    this.bannerTitle = '',
+    this.bannerSubtitle = '',
+    this.bannerLinkUrl = '',
     this.status = 'pending',
     this.adminRejectionReason,
     required this.createdAt,
@@ -242,41 +261,66 @@ class PaymentAuditRecord {
         'user_id': userId,
         'user_name': userName,
         'user_phone': userPhone,
+        'user_email': userEmail,
         'user_governorate': userGovernorate,
+        'request_type': requestType,
         'plan_id': planId,
         'plan_name': planName,
+        'duration_label': durationLabel,
+        'duration_hours': durationHours,
         'gateway': gateway,
         'amount_usd': amountUsd,
         'amount_syp': amountSyp,
         'transaction_ref': transactionRefOrTxId,
+        'receipt_image_url': receiptImageUrl,
+        'banner_images': bannerImages,
+        'banner_title': bannerTitle,
+        'banner_subtitle': bannerSubtitle,
+        'banner_link_url': bannerLinkUrl,
         'status': status,
         'rejection_reason': adminRejectionReason,
         'created_at': createdAt.toIso8601String(),
         'processed_at': processedAt?.toIso8601String(),
       };
 
-  factory PaymentAuditRecord.fromMap(Map<String, dynamic> map) =>
-      PaymentAuditRecord(
-        id: map['id']?.toString() ?? '',
-        userId: map['user_id']?.toString() ?? '',
-        userName: map['user_name']?.toString() ?? 'مشترك',
-        userPhone: map['user_phone']?.toString() ?? '',
-        userGovernorate: map['user_governorate']?.toString() ?? 'دمشق',
-        planId: map['plan_id']?.toString() ?? '',
-        planName: map['plan_name']?.toString() ?? '',
-        gateway: map['gateway']?.toString() ?? 'SHAM_CASH',
-        amountUsd: (map['amount_usd'] as num?)?.toDouble() ?? 0.0,
-        amountSyp: (map['amount_syp'] as num?)?.toDouble() ?? 0.0,
-        transactionRefOrTxId: map['transaction_ref']?.toString() ?? '',
-        status: map['status']?.toString() ?? 'pending',
-        adminRejectionReason: map['rejection_reason']?.toString(),
-        createdAt: map['created_at'] != null
-            ? DateTime.tryParse(map['created_at'].toString()) ?? DateTime.now()
-            : DateTime.now(),
-        processedAt: map['processed_at'] != null
-            ? DateTime.tryParse(map['processed_at'].toString())
-            : null,
-      );
+  factory PaymentAuditRecord.fromMap(Map<String, dynamic> map) {
+    List<String> bImages = [];
+    if (map['banner_images'] is List) {
+      bImages =
+          (map['banner_images'] as List).map((e) => e.toString()).toList();
+    }
+
+    return PaymentAuditRecord(
+      id: map['id']?.toString() ?? '',
+      userId: map['user_id']?.toString() ?? '',
+      userName: map['user_name']?.toString() ?? 'مشترك',
+      userPhone: map['user_phone']?.toString() ?? '',
+      userEmail: map['user_email']?.toString() ?? '',
+      userGovernorate: map['user_governorate']?.toString() ?? 'دمشق',
+      requestType: map['request_type']?.toString() ?? 'plan_subscription',
+      planId: map['plan_id']?.toString() ?? '',
+      planName: map['plan_name']?.toString() ?? '',
+      durationLabel: map['duration_label']?.toString() ?? 'شهري (30 يوم)',
+      durationHours: (map['duration_hours'] as num?)?.toInt() ?? 720,
+      gateway: map['gateway']?.toString() ?? 'SHAM_CASH',
+      amountUsd: (map['amount_usd'] as num?)?.toDouble() ?? 0.0,
+      amountSyp: (map['amount_syp'] as num?)?.toDouble() ?? 0.0,
+      transactionRefOrTxId: map['transaction_ref']?.toString() ?? '',
+      receiptImageUrl: map['receipt_image_url']?.toString(),
+      bannerImages: bImages,
+      bannerTitle: map['banner_title']?.toString() ?? '',
+      bannerSubtitle: map['banner_subtitle']?.toString() ?? '',
+      bannerLinkUrl: map['banner_link_url']?.toString() ?? '',
+      status: map['status']?.toString() ?? 'pending',
+      adminRejectionReason: map['rejection_reason']?.toString(),
+      createdAt: map['created_at'] != null
+          ? DateTime.tryParse(map['created_at'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      processedAt: map['processed_at'] != null
+          ? DateTime.tryParse(map['processed_at'].toString())
+          : null,
+    );
+  }
 }
 
 class DepartmentNode {
@@ -1209,13 +1253,14 @@ class AppStateManager extends ChangeNotifier {
   double exchangeRateUsdToSyp = 15200.0;
   double goldPrice21kSyp = 980000.0;
 
-  // بيانات المستخدم والجلسة الدائمة// بيانات المستخدم والجلسة الدائمة
+  // بيانات المستخدم والجلسة الدائمة
   String currentUserId = '';
   String currentUserName = 'زائر المنصة';
   String currentUserEmail = '';
   String currentUserPhone = '';
   String currentUserRole = 'user';
   String currentUserPlanId = 'plan_free';
+  DateTime? currentUserPlanExpiresAt; // تاريخ ووقت انتهاء اشتراك الباقة ⏳
   bool isCurrentUserVerified = false;
   int currentUserPositiveLikes = 0;
   int currentUserDislikes = 0;
@@ -1226,6 +1271,45 @@ class AppStateManager extends ChangeNotifier {
       kAuthorizedAdminEmails.contains(currentUserEmail.toLowerCase());
   bool get isModerator => isSuperAdmin || currentUserRole == 'moderator';
   bool get isAdmin => isSuperAdmin || isModerator;
+
+  // هل انتهت صلاحية باقة المشترك الحالية؟
+  bool get isUserPlanExpired {
+    if (currentUserPlanId == 'plan_free' || currentUserPlanExpiresAt == null) {
+      return false;
+    }
+    return DateTime.now().isAfter(currentUserPlanExpiresAt!);
+  }
+
+  // العداد التنازلي لمتبقي مدة الاشتراك المعروض للتاجر
+  String get remainingPlanTimeFormatted {
+    if (currentUserPlanId == 'plan_free' || currentUserPlanExpiresAt == null) {
+      return 'باقة مجانية مفتوحة';
+    }
+    final diff = currentUserPlanExpiresAt!.difference(DateTime.now());
+    if (diff.isNegative) return 'انتهى الاشتراك ❌';
+    if (diff.inDays > 0) {
+      return 'متبقي: ${diff.inDays} يوم و ${diff.inHours % 24} ساعة ⏳';
+    }
+    return 'متبقي: ${diff.inHours} ساعة و ${diff.inMinutes % 60} دقيقة ⏳';
+  }
+
+  // فحص دوري ذكي: إذا انتهت المدة يعود الحساب تلقائياً للباقة المجانية
+  void checkPlanExpiration() {
+    if (isUserPlanExpired) {
+      currentUserPlanId = 'plan_free';
+      isCurrentUserVerified = false;
+      currentUserPlanExpiresAt = null;
+      try {
+        SharedPreferences.getInstance().then((prefs) {
+          prefs.setString('ss_user_plan_id', 'plan_free');
+          prefs.remove('ss_user_plan_expires');
+          prefs.setBool('ss_user_verified', false);
+        });
+      } catch (_) {}
+      notifyListeners();
+    }
+  }
+
   // القوائم والبيانات الحقيقية
   List<AdItem> ads = [];
   List<BannerItem> banners = [];
@@ -1270,6 +1354,7 @@ class AppStateManager extends ChangeNotifier {
         .listen((List<Map<String, dynamic>> data) {
           ads = data.map((map) => AdItem.fromMap(map)).toList();
           saveAdsToOfflineCache(ads);
+          checkPlanExpiration();
           notifyListeners();
         }, onError: (err) {
           debugPrint('Realtime Ads Error: $err');
@@ -1346,9 +1431,16 @@ class AppStateManager extends ChangeNotifier {
       currentUserPositiveLikes = prefs.getInt('ss_user_likes') ?? 0;
       currentUserDislikes = prefs.getInt('ss_user_dislikes') ?? 0;
 
+      final expiresStr = prefs.getString('ss_user_plan_expires');
+      if (expiresStr != null) {
+        currentUserPlanExpiresAt = DateTime.tryParse(expiresStr);
+      }
+
       if (kAuthorizedAdminEmails.contains(currentUserEmail.toLowerCase())) {
         currentUserRole = 'super_admin';
       }
+
+      checkPlanExpiration();
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading session: $e');
@@ -1362,6 +1454,7 @@ class AppStateManager extends ChangeNotifier {
     required String phone,
     String role = 'user',
     String planId = 'plan_free',
+    DateTime? planExpiresAt,
     bool isVerified = false,
     int positiveLikes = 0,
   }) async {
@@ -1373,6 +1466,7 @@ class AppStateManager extends ChangeNotifier {
         ? 'super_admin'
         : role;
     currentUserPlanId = planId;
+    currentUserPlanExpiresAt = planExpiresAt;
     isCurrentUserVerified = isVerified;
     currentUserPositiveLikes = positiveLikes;
 
@@ -1384,6 +1478,12 @@ class AppStateManager extends ChangeNotifier {
       await prefs.setString('ss_user_phone', currentUserPhone);
       await prefs.setString('ss_user_role', currentUserRole);
       await prefs.setString('ss_user_plan_id', currentUserPlanId);
+      if (currentUserPlanExpiresAt != null) {
+        await prefs.setString('ss_user_plan_expires',
+            currentUserPlanExpiresAt!.toIso8601String());
+      } else {
+        await prefs.remove('ss_user_plan_expires');
+      }
       await prefs.setBool('ss_user_verified', isCurrentUserVerified);
       await prefs.setInt('ss_user_likes', currentUserPositiveLikes);
     } catch (e) {
@@ -1399,6 +1499,7 @@ class AppStateManager extends ChangeNotifier {
     currentUserPhone = '';
     currentUserRole = 'user';
     currentUserPlanId = 'plan_free';
+    currentUserPlanExpiresAt = null;
     isCurrentUserVerified = false;
     currentUserPositiveLikes = 0;
 
@@ -1410,6 +1511,7 @@ class AppStateManager extends ChangeNotifier {
       await prefs.remove('ss_user_phone');
       await prefs.remove('ss_user_role');
       await prefs.remove('ss_user_plan_id');
+      await prefs.remove('ss_user_plan_expires');
       await prefs.remove('ss_user_verified');
       await prefs.remove('ss_user_likes');
       await Supabase.instance.client.auth.signOut();
@@ -1683,23 +1785,82 @@ class AppStateManager extends ChangeNotifier {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // تنظيف الكاش والذاكرة المؤقتة للصور والإعلانات القديمة لتسريع التطبيق وتوفير المساحة
+  // ---------------------------------------------------------------------------
+  Future<void> clearExpiredCache() async {
+    try {
+      // 1. تفريغ كاش الصور المحفوظة في ذاكرة الرام للمحرك
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+
+      // 2. تنظيف الإعلانات والبانورامات منتهية الصلاحية من الذاكرة المحلية
+      banners.removeWhere((b) => b.isExpired);
+      ads.removeWhere((a) => a.shouldBeDeletedNow);
+
+      // 3. تحديث الكاش المحلي النظيف
+      await saveBannersToOfflineCache(banners);
+      await saveAdsToOfflineCache(ads);
+
+      notifyListeners();
+      debugPrint(
+          '✓ Cleaned expired cache and freed device memory successfully.');
+    } catch (e) {
+      debugPrint('Error cleaning expired cache: $e');
+    }
+  }
+
   Future<bool> submitPaymentAuditRequest({
-    required SubscriptionPlanItem plan,
+    required String planId,
+    required String planName,
+    required double priceUsd,
     required String gateway,
     required String refOrTxId,
+    required String userName,
+    required String userPhone,
+    required String userEmail,
+    required String userGovernorate,
+    String requestType = 'plan_subscription', // أو 'panorama_booking'
+    String durationLabel = 'شهري (30 يوم)',
+    int durationHours = 720,
+    Uint8List? receiptBytes,
+    List<String> bannerImages = const [],
+    String bannerTitle = '',
+    String bannerSubtitle = '',
+    String bannerLinkUrl = '',
   }) async {
+    String? uploadedReceiptUrl;
+    if (receiptBytes != null) {
+      uploadedReceiptUrl = await StorageUploadService.uploadImageBytes(
+        bucketName: kStorageBucketFeedbacks,
+        imageBytes: receiptBytes,
+        prefix: 'receipt',
+      );
+    }
+
     final record = PaymentAuditRecord(
       id: 'tx_${DateTime.now().millisecondsSinceEpoch}',
-      userId: currentUserId,
-      userName: currentUserName,
-      userPhone: currentUserPhone,
-      userGovernorate: 'دمشق',
-      planId: plan.id,
-      planName: plan.name,
+      userId: currentUserId.isNotEmpty
+          ? currentUserId
+          : 'guest_${DateTime.now().millisecondsSinceEpoch}',
+      userName: userName,
+      userPhone: userPhone,
+      userEmail: userEmail,
+      userGovernorate: userGovernorate,
+      requestType: requestType,
+      planId: planId,
+      planName: planName,
+      durationLabel: durationLabel,
+      durationHours: durationHours,
       gateway: gateway,
-      amountUsd: plan.priceUsd,
-      amountSyp: plan.priceUsd * exchangeRateUsdToSyp,
+      amountUsd: priceUsd,
+      amountSyp: priceUsd * exchangeRateUsdToSyp,
       transactionRefOrTxId: refOrTxId,
+      receiptImageUrl: uploadedReceiptUrl,
+      bannerImages: bannerImages,
+      bannerTitle: bannerTitle,
+      bannerSubtitle: bannerSubtitle,
+      bannerLinkUrl: bannerLinkUrl,
       status: 'pending',
       createdAt: DateTime.now(),
     );
@@ -1718,16 +1879,55 @@ class AppStateManager extends ChangeNotifier {
     }
   }
 
-  void approvePaymentTransaction(String txId) {
+  void approvePaymentTransaction(String txId) async {
     final index = paymentAudits.indexWhere((p) => p.id == txId);
     if (index != -1) {
-      paymentAudits[index].status = 'approved';
-      paymentAudits[index].processedAt = DateTime.now();
-      upgradeUserPlan(paymentAudits[index].planId);
+      final audit = paymentAudits[index];
+      audit.status = 'approved';
+      audit.processedAt = DateTime.now();
+
+      // 1. إذا كان الطلب ترقية باقة مستخدم (شهري أو سنوي)
+      if (audit.requestType == 'plan_subscription') {
+        upgradeUserPlan(audit.planId, durationHours: audit.durationHours);
+      }
+      // 2. إذا كان الطلب حجز وتفعيل بانوراما إعلانية بالساعات أو الأيام
+      else if (audit.requestType == 'panorama_booking') {
+        final newBanner = BannerItem(
+          id: 'bn_${DateTime.now().millisecondsSinceEpoch}',
+          imageUrls: audit.bannerImages.isNotEmpty
+              ? audit.bannerImages
+              : [audit.receiptImageUrl ?? ''],
+          title: audit.bannerTitle.isNotEmpty
+              ? audit.bannerTitle
+              : 'إعلان بانوراما VIP',
+          subtitle: audit.bannerSubtitle.isNotEmpty
+              ? audit.bannerSubtitle
+              : 'سوق سوريا الشامل',
+          description: 'معلن معتمد • تم الحجز والتفعيل عبر الإدارة المركزية',
+          location: audit.userGovernorate,
+          phone: audit.userPhone,
+          whatsapp: audit.userPhone,
+          linkUrl: audit.bannerLinkUrl,
+          badgeText: 'VIP ★',
+          badgeColor: const Color(0xFFD4AF37),
+          displayDurationSeconds: bannerDefaultIntervalSeconds,
+          expiresAt: DateTime.now().add(Duration(hours: audit.durationHours)),
+          isActive: true,
+        );
+
+        banners.insert(0, newBanner);
+        saveBannersToOfflineCache(banners);
+        try {
+          await Supabase.instance.client
+              .from('banners')
+              .insert(newBanner.toMap());
+        } catch (_) {}
+      }
+
       notifyListeners();
 
       try {
-        Supabase.instance.client.from('payment_audits').update({
+        await Supabase.instance.client.from('payment_audits').update({
           'status': 'approved',
           'processed_at': DateTime.now().toIso8601String(),
         }).eq('id', txId);
@@ -1875,8 +2075,10 @@ class AppStateManager extends ChangeNotifier {
           );
   }
 
-  void upgradeUserPlan(String planId) {
+  void upgradeUserPlan(String planId, {int durationHours = 720}) {
     currentUserPlanId = planId;
+    currentUserPlanExpiresAt =
+        DateTime.now().add(Duration(hours: durationHours));
     if (planId == 'plan_vip' || planId == 'plan_pro') {
       isCurrentUserVerified = true;
     }
@@ -1887,6 +2089,7 @@ class AppStateManager extends ChangeNotifier {
       phone: currentUserPhone,
       role: currentUserRole,
       planId: currentUserPlanId,
+      planExpiresAt: currentUserPlanExpiresAt,
       isVerified: isCurrentUserVerified,
       positiveLikes: currentUserPositiveLikes,
     );
@@ -5472,8 +5675,7 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
                             ),
                           ),
                         ],
-                      ),
-                      const Divider(height: 16),
+                const Divider(height: 16),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
@@ -5661,6 +5863,916 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
 }
 
 // ==============================================================================
+// شاشة استمارة ترقية الباقات الشهرية والسنوية مع رفع الإيصال (SubscriptionPlansScreen)
+// ==============================================================================
+class SubscriptionPlansScreen extends StatefulWidget {
+  const SubscriptionPlansScreen({Key? key}) : super(key: key);
+
+  @override
+  State<SubscriptionPlansScreen> createState() =>
+      _SubscriptionPlansScreenState();
+}
+
+class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
+  final AppStateManager _manager = AppStateManager();
+  SubscriptionPlanItem? _selectedPlan;
+  String _selectedDurationType = 'monthly'; // 'monthly' أو 'yearly'
+  String _selectedGateway = 'SHAM_CASH';
+  String _selectedGovernorate = 'دمشق';
+
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _refController = TextEditingController();
+
+  Uint8List? _receiptImageBytes;
+  bool _isSubmitting = false;
+
+  final List<String> _governorates = [
+    'دمشق',
+    'ريف دمشق',
+    'حلب',
+    'حمص',
+    'حماة',
+    'اللاذقية',
+    'طرطوس',
+    'إدلب',
+    'درعا',
+    'السويداء',
+    'القنيطرة',
+    'دير الزور',
+    'الرقة',
+    'الحسكة'
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController.text = _manager.currentUserName;
+    _phoneController.text = _manager.currentUserPhone;
+    _emailController.text = _manager.currentUserEmail;
+    if (_manager.subscriptionPlans.isNotEmpty) {
+      _selectedPlan = _manager.subscriptionPlans.firstWhere(
+        (p) => p.priceUsd > 0,
+        orElse: () => _manager.subscriptionPlans.first,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    _refController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickReceiptImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 75,
+      maxWidth: 1080,
+    );
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      setState(() => _receiptImageBytes = bytes);
+    }
+  }
+
+  Future<void> _submitUpgrade() async {
+    if (_nameController.text.trim().isEmpty ||
+        _phoneController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى كتابة الاسم ورقم الهاتف للتواصل')),
+      );
+      return;
+    }
+
+    if (_receiptImageBytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ يرجى إرفاق صورة إشعار أو إيصال التحويل لإثبات الدفع'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    final isYearly = _selectedDurationType == 'yearly';
+    final durationHours = isYearly ? 8760 : 720;
+    final durationLabel = isYearly ? 'اشتراك سنوي (12 شهر) 🌟' : 'اشتراك شهري (30 يوم) 📅';
+    final basePrice = _selectedPlan!.priceUsd;
+    final finalPrice = isYearly ? (basePrice * 10) : basePrice; // خصم شهرين مجاناً في السنوي
+
+    final success = await _manager.submitPaymentAuditRequest(
+      planId: _selectedPlan!.id,
+      planName: _selectedPlan!.name,
+      priceUsd: finalPrice,
+      gateway: _selectedGateway,
+      refOrTxId: _refController.text.trim().isNotEmpty
+          ? _refController.text.trim()
+          : 'مرفق صورة الإيصال',
+      userName: _nameController.text.trim(),
+      userPhone: _phoneController.text.trim(),
+      userEmail: _emailController.text.trim(),
+      userGovernorate: _selectedGovernorate,
+      requestType: 'plan_subscription',
+      durationLabel: durationLabel,
+      durationHours: durationHours,
+      receiptBytes: _receiptImageBytes,
+    );
+
+    setState(() => _isSubmitting = false);
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.verified, color: Colors.green, size: 26),
+              SizedBox(width: 8),
+              Text('تم إرسال طلب الترقية 📄', style: TextStyle(fontSize: 16)),
+            ],
+          ),
+          content: Text(
+            'تم استلام بياناتك وصورة إشعار الدفع بنجاح ($durationLabel).\nسيتم مراجعة الإيصال وتفعيل باقتك مع العداد التنازلي التلقائي خلال دقائق!',
+            style: const TextStyle(fontSize: 13, height: 1.5),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _manager.primaryColor),
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.pop(context);
+              },
+              child: const Text('حسناً', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isYearly = _selectedDurationType == 'yearly';
+    final basePrice = _selectedPlan != null ? _selectedPlan!.priceUsd : 0.0;
+    final finalPriceUsd = isYearly ? (basePrice * 10) : basePrice;
+    final finalPriceSyp = (finalPriceUsd * _manager.exchangeRateUsdToSyp).toInt();
+
+    return Scaffold(
+      backgroundColor: _manager.scaffoldBgColor,
+      appBar: AppBar(
+        backgroundColor: _manager.appBarColor,
+        title: const Text(
+          'باقات الاشتراك وترقية الحساب 👑',
+          style: TextStyle(
+              color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: ListView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
+          // 1. اختيار مدة الاشتراك (شهري / سنوي)
+          const Text('1. حدد فترة الاشتراك المطلوبة:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ChoiceChip(
+                  label: const Text('اشتراك شهري (30 يوم) 📅'),
+                  selected: _selectedDurationType == 'monthly',
+                  selectedColor: const Color(0xFFD4AF37),
+                  onSelected: (v) =>
+                      setState(() => _selectedDurationType = 'monthly'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ChoiceChip(
+                  label: const Text('اشتراك سنوي (خصم شهرين) 🌟'),
+                  selected: _selectedDurationType == 'yearly',
+                  selectedColor: const Color(0xFFD4AF37),
+                  onSelected: (v) =>
+                      setState(() => _selectedDurationType = 'yearly'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // 2. اختيار الباقة
+          const Text('2. اختر الباقة المناسبة لك:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 8),
+          ..._manager.subscriptionPlans.where((p) => p.priceUsd > 0).map((plan) {
+            final isSelected = _selectedPlan?.id == plan.id;
+            final itemPrice = isYearly ? (plan.priceUsd * 10) : plan.priceUsd;
+            final itemSyp = (itemPrice * _manager.exchangeRateUsdToSyp).toInt();
+
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: isSelected
+                      ? const Color(0xFFD4AF37)
+                      : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+              child: ListTile(
+                onTap: () => setState(() => _selectedPlan = plan),
+                leading: CircleAvatar(
+                  backgroundColor: isSelected
+                      ? const Color(0xFFD4AF37)
+                      : _manager.primaryColor,
+                  child: Icon(
+                    plan.id == 'plan_vip'
+                        ? Icons.workspace_premium
+                        : Icons.star,
+                    color: Colors.white,
+                  ),
+                ),
+                title: Text(plan.name,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 14)),
+                subtitle: Text(
+                    'الحد: ${plan.maxAds} إعلانات • ${plan.maxImagesPerAd} صور • شارة موثق',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                trailing: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('\$${itemPrice.toInt()} USD',
+                        style: const TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13)),
+                    Text('$itemSyp ل.س',
+                        style: const TextStyle(
+                            color: Color(0xFFD4AF37),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11)),
+                  ],
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 8),
+
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('المجموع: \$$finalPriceUsd دولار',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.green)),
+                Text('$finalPriceSyp ليرة سورية',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, color: Color(0xFFD4AF37))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // 3. حسابات التحويل
+          const Text('3. انسخ الحساب وحوّل المبلغ المطلوب:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 8),
+          const ExclusivePaymentGatewayCard(),
+          const SizedBox(height: 16),
+
+          // 4. استمارة معلومات المشترك
+          const Text('4. بياناتك للتواصل والتوثيق:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _nameController,
+            decoration: InputDecoration(
+              labelText: 'الاسم الكامل أو اسم المتجر/المحل *',
+              prefixIcon: const Icon(Icons.person),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _phoneController,
+            keyboardType: TextInputType.phone,
+            decoration: InputDecoration(
+              labelText: 'رقم هاتف الاتصال والواتساب *',
+              prefixIcon: const Icon(Icons.phone),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: InputDecoration(
+              labelText: 'البريد الإلكتروني (لتأكيد الفاتورة)',
+              prefixIcon: const Icon(Icons.email),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            value: _selectedGovernorate,
+            decoration: InputDecoration(
+              labelText: 'المحافظة',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            items: _governorates
+                .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                .toList(),
+            onChanged: (v) {
+              if (v != null) setState(() => _selectedGovernorate = v);
+            },
+          ),
+          const SizedBox(height: 14),
+
+          // اختيار البوابة
+          Row(
+            children: [
+              Expanded(
+                child: ChoiceChip(
+                  label: const Text('دفع عبر شام كاش 🇸🇾'),
+                  selected: _selectedGateway == 'SHAM_CASH',
+                  onSelected: (v) =>
+                      setState(() => _selectedGateway = 'SHAM_CASH'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ChoiceChip(
+                  label: const Text('دفع عبر بينانس USDT 🪙'),
+                  selected: _selectedGateway == 'BINANCE_USDT',
+                  onSelected: (v) =>
+                      setState(() => _selectedGateway = 'BINANCE_USDT'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _refController,
+            decoration: const InputDecoration(
+              labelText: 'رقم العملية أو رمز المعاملة (اختياري)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 5. إرفاق صورة إشعار الدفع
+          const Text('5. إرفاق صورة الإيصال أو لقطة شاشة التحويل *:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: _pickReceiptImage,
+            child: Container(
+              height: 130,
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _receiptImageBytes != null
+                      ? Colors.green
+                      : _manager.secondaryColor,
+                  width: 1.5,
+                ),
+              ),
+              child: _receiptImageBytes != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(11),
+                      child: Image.memory(
+                        _receiptImageBytes!,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                      ),
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_a_photo,
+                            color: _manager.secondaryColor, size: 36),
+                        const SizedBox(height: 6),
+                        const Text('اضغط لاختيار صورة إيصال التحويل من المعرض',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 13)),
+                      ],
+                    ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // زر الإرسال
+          SizedBox(
+            height: 50,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _manager.buttonColor,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: _isSubmitting ? null : _submitUpgrade,
+              child: _isSubmitting
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text(
+                      'إرسال التقرير وصورة الإشعار للإدارة فوراً 🚀',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 30),
+        ],
+      ),
+    );
+  }
+}
+
+// ==============================================================================
+// شاشة استمارة حجز البانورامات بالساعات والأيام (PanoramaBookingScreen)
+// ==============================================================================
+class PanoramaBookingScreen extends StatefulWidget {
+  const PanoramaBookingScreen({Key? key}) : super(key: key);
+
+  @override
+  State<PanoramaBookingScreen> createState() => _PanoramaBookingScreenState();
+}
+
+class _PanoramaBookingScreenState extends State<PanoramaBookingScreen> {
+  final AppStateManager _manager = AppStateManager();
+
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _subtitleController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _linkController = TextEditingController();
+  final TextEditingController _refController = TextEditingController();
+
+  String _selectedGateway = 'SHAM_CASH';
+  String _selectedGovernorate = 'دمشق';
+
+  final List<Map<String, dynamic>> _durationOptions = [
+    {'label': '3 ساعات ⏱️', 'hours': 3, 'priceUsd': 3.0},
+    {'label': '6 ساعات ⏱️', 'hours': 6, 'priceUsd': 5.0},
+    {'label': '12 ساعة ⏱️', 'hours': 12, 'priceUsd': 8.0},
+    {'label': '24 ساعة (يوم كامل) 🌞', 'hours': 24, 'priceUsd': 12.0},
+    {'label': '48 ساعة (يومان) 📅', 'hours': 48, 'priceUsd': 20.0},
+    {'label': 'أسبوع (7 أيام) 🌟', 'hours': 168, 'priceUsd': 45.0},
+    {'label': '10 أيام 🔥', 'hours': 240, 'priceUsd': 60.0},
+    {'label': 'شهر كامل (30 يوم) 👑', 'hours': 720, 'priceUsd': 150.0},
+  ];
+
+  late Map<String, dynamic> _selectedDuration;
+  final List<Uint8List> _bannerImagesBytes = [];
+  Uint8List? _receiptImageBytes;
+  bool _isSubmitting = false;
+
+  final List<String> _governorates = [
+    'كل المحافظات',
+    'دمشق',
+    'ريف دمشق',
+    'حلب',
+    'حمص',
+    'حماة',
+    'اللاذقية',
+    'طرطوس',
+    'إدلب',
+    'درعا',
+    'السويداء',
+    'القنيطرة',
+    'دير الزور',
+    'الرقة',
+    'الحسكة'
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDuration = _durationOptions[3]; // الافتراضي: 24 ساعة
+    _phoneController.text = _manager.currentUserPhone;
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _subtitleController.dispose();
+    _phoneController.dispose();
+    _linkController.dispose();
+    _refController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickBannerImages() async {
+    final picker = ImagePicker();
+    final picked =
+        await picker.pickMultiImage(imageQuality: 75, maxWidth: 1200);
+    if (picked.isNotEmpty) {
+      for (var f in picked) {
+        if (_bannerImagesBytes.length < 15) {
+          final b = await f.readAsBytes();
+          setState(() => _bannerImagesBytes.add(b));
+        }
+      }
+    }
+  }
+
+  Future<void> _pickReceiptImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+        source: ImageSource.gallery, imageQuality: 75, maxWidth: 1080);
+    if (picked != null) {
+      final b = await picked.readAsBytes();
+      setState(() => _receiptImageBytes = b);
+    }
+  }
+
+  Future<void> _submitPanoramaBooking() async {
+    if (_titleController.text.trim().isEmpty ||
+        _phoneController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('يرجى كتابة عنوان البانوراما ورقم الهاتف للتواصل')),
+      );
+      return;
+    }
+
+    if (_bannerImagesBytes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('⚠️ يرجى اختيار صورة واحدة على الأقل للبانوراما')),
+      );
+      return;
+    }
+
+    if (_receiptImageBytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('⚠️ يرجى إرفاق صورة إيصال التحويل لإثبات الدفع')),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    // رفع صور البانوراما
+    final uploadedBannerUrls =
+        await StorageUploadService.uploadMultipleImageBytes(
+      bucketName: kStorageBucketBanners,
+      imagesBytesList: _bannerImagesBytes,
+      prefix: 'book_pan',
+    );
+
+    // رفع صورة الإيصال
+    String? uploadedReceiptUrl;
+    if (_receiptImageBytes != null) {
+      uploadedReceiptUrl = await StorageUploadService.uploadImageBytes(
+        bucketName: kStorageBucketFeedbacks,
+        imageBytes: _receiptImageBytes!,
+        prefix: 'receipt',
+      );
+    }
+
+    final double priceUsd = (_selectedDuration['priceUsd'] as num).toDouble();
+
+    await _manager.submitPaymentAuditRequest(
+      planId: 'panorama_slot',
+      planName: 'حجز بانوراما (${_selectedDuration['label']})',
+      priceUsd: priceUsd,
+      gateway: _selectedGateway,
+      refOrTxId: _refController.text.trim().isNotEmpty
+          ? _refController.text.trim()
+          : 'مرفق إيصال الدفع',
+      userName: _manager.currentUserName,
+      userPhone: _phoneController.text.trim(),
+      userEmail: _manager.currentUserEmail,
+      userGovernorate: _selectedGovernorate,
+      requestType: 'panorama_booking',
+      durationLabel: _selectedDuration['label'].toString(),
+      durationHours: _selectedDuration['hours'] as int,
+      receiptBytes: _receiptImageBytes,
+      bannerImages: uploadedBannerUrls,
+      bannerTitle: _titleController.text.trim(),
+      bannerSubtitle: _subtitleController.text.trim(),
+      bannerLinkUrl: _linkController.text.trim(),
+    );
+
+    setState(() => _isSubmitting = false);
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.verified, color: Colors.green, size: 26),
+              SizedBox(width: 8),
+              Text('تم استلام طلب حجز البانوراما 🖼️',
+                  style: TextStyle(fontSize: 15)),
+            ],
+          ),
+          content: Text(
+            'تم إرسال صور البانوراما وإشعار الدفع بنجاح.\nسيتم تفعيل البانوراما في الواجهة الرئيسية فور تدقيق الإيصال لتبدأ مدة العرض (${_selectedDuration['label']}) مع العداد التنازلي التلقائي!',
+            style: const TextStyle(fontSize: 13, height: 1.5),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _manager.primaryColor),
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.pop(context);
+              },
+              child: const Text('حسناً', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double priceUsd = (_selectedDuration['priceUsd'] as num).toDouble();
+    final int priceSyp = (priceUsd * _manager.exchangeRateUsdToSyp).toInt();
+
+    return Scaffold(
+      backgroundColor: _manager.scaffoldBgColor,
+      appBar: AppBar(
+        backgroundColor: _manager.appBarColor,
+        title: const Text(
+          'حجز بانوراما إعلانية تفاعلية 🖼️',
+          style: TextStyle(
+              color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: ListView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
+          // 1. مدة العرض والأسعار
+          const Text('1. اختر مدة بقاء البانوراما في الرئيسية:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _durationOptions.map((opt) {
+              final isSel = _selectedDuration['hours'] == opt['hours'];
+              return ChoiceChip(
+                label: Text('${opt['label']} (\${opt['priceUsd']})'),
+                selected: isSel,
+                selectedColor: const Color(0xFFD4AF37),
+                onSelected: (val) {
+                  if (val) setState(() => _selectedDuration = opt);
+                },
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('المبلغ المطلوب: \$$priceUsd دولار',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.green)),
+                Text('$priceSyp ليرة سورية',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFD4AF37))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 2. صور البانوراما
+          const Text('2. صور البانوراما (حتى 15 صورة تتقلب تلقائياً):',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 85,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                InkWell(
+                  onTap: _pickBannerImages,
+                  child: Container(
+                    width: 85,
+                    decoration: BoxDecoration(
+                      color: _manager.primaryColor.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                          color: _manager.secondaryColor, width: 1.5),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_photo_alternate,
+                            color: _manager.secondaryColor, size: 26),
+                        const SizedBox(height: 4),
+                        const Text('إضافة صور',
+                            style: TextStyle(
+                                fontSize: 10, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ..._bannerImagesBytes.map((bytes) => Container(
+                      margin: const EdgeInsets.only(left: 8),
+                      width: 85,
+                      height: 85,
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10)),
+                      child: Image.memory(bytes, fit: BoxFit.cover),
+                    )),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 3. نصوص وروابط البانوراما
+          const Text('3. تفاصيل ونص الإعلان:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _titleController,
+            decoration: const InputDecoration(
+                labelText: 'العنوان الرئيسي للبانوراما *',
+                border: OutlineInputBorder()),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _subtitleController,
+            decoration: const InputDecoration(
+                labelText: 'النص الفرعي أو التخفيض',
+                border: OutlineInputBorder()),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _phoneController,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+                labelText: 'رقم الواتساب والاتصال للمشترين *',
+                border: OutlineInputBorder()),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _linkController,
+            decoration: const InputDecoration(
+                labelText: 'رابط صفحة أو موقع (فيسبوك/تليجرام/موقع)',
+                border: OutlineInputBorder()),
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            value: _selectedGovernorate,
+            decoration: const InputDecoration(
+                labelText: 'المحافظة المستهدفة', border: OutlineInputBorder()),
+            items: _governorates
+                .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                .toList(),
+            onChanged: (v) {
+              if (v != null) setState(() => _selectedGovernorate = v);
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // 4. الدفع وإرفاق الإيصال
+          const Text('4. التحويل وإرفاق صورة الإشعار:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 8),
+          const ExclusivePaymentGatewayCard(),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: ChoiceChip(
+                  label: const Text('شام كاش 🇸🇾'),
+                  selected: _selectedGateway == 'SHAM_CASH',
+                  onSelected: (v) =>
+                      setState(() => _selectedGateway = 'SHAM_CASH'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ChoiceChip(
+                  label: const Text('بينانس USDT 🪙'),
+                  selected: _selectedGateway == 'BINANCE_USDT',
+                  onSelected: (v) =>
+                      setState(() => _selectedGateway = 'BINANCE_USDT'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _refController,
+            decoration: const InputDecoration(
+                labelText: 'رمز التحويل / TXID (اختياري)',
+                border: OutlineInputBorder()),
+          ),
+          const SizedBox(height: 12),
+          InkWell(
+            onTap: _pickReceiptImage,
+            child: Container(
+              height: 110,
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: _receiptImageBytes != null
+                      ? Colors.green
+                      : _manager.secondaryColor,
+                  width: 1.5,
+                ),
+              ),
+              child: _receiptImageBytes != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(9),
+                      child: Image.memory(_receiptImageBytes!,
+                          fit: BoxFit.cover, width: double.infinity),
+                    )
+                  : const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.receipt_long,
+                            color: Color(0xFFD4AF37), size: 30),
+                        SizedBox(height: 4),
+                        Text(
+                            'اضغط لإرفاق صورة إشعار أو لقطة شاشة التحويل 📸',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 12)),
+                      ],
+                    ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // زر إرسال الطلب
+          SizedBox(
+            height: 50,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _manager.buttonColor,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: _isSubmitting ? null : _submitPanoramaBooking,
+              child: _isSubmitting
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text('إرسال طلب الحجز والإشعار للإدارة فوراً 🚀',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15)),
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+// ==============================================================================
 // 19. الشاشة الرئيسية الكبرى المحصنة ضد Overflow (MainDashboardScreen)
 // ==============================================================================
 class MainDashboardScreen extends StatefulWidget {
@@ -5765,7 +6877,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
     _searchController.dispose();
     super.dispose();
   }
-
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
@@ -5881,8 +6992,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       debugPrint('Error toggling favorite: $e');
     }
   }
-
-  Future<void> _fetchUserChats() async {
+Future<void> _fetchUserChats() async {
     if (!_manager.isLoggedIn || _manager.currentUserId.isEmpty) return;
     try {
       final res = await Supabase.instance.client
@@ -6021,7 +7131,221 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
     return true;
   }
 
+  // ===========================================================================
+  // عرض لائحة تفاصيل البانوراما التفاعلية للمستخدم عند لمس الصورة (بدلاً من فتح المعرض)
+  // ===========================================================================
+  void _showBannerDetailsSheet(BannerItem b) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 18,
+            right: 18,
+            top: 18,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 45,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: b.badgeColor,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        b.badgeText,
+                        style: const TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12),
+                      ),
+                    ),
+                    if (b.location.isNotEmpty)
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on,
+                              size: 16, color: Colors.red),
+                          const SizedBox(width: 4),
+                          Text(b.location,
+                              style: const TextStyle(
+                                  fontSize: 12, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  b.title,
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                if (b.subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    b.subtitle,
+                    style: TextStyle(
+                        fontSize: 14,
+                        color: _manager.secondaryColor,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  b.description,
+                  style: const TextStyle(
+                      fontSize: 13, color: Colors.black87, height: 1.4),
+                ),
+                const SizedBox(height: 16),
+                if (b.imageUrls.length > 1) ...[
+                  const Text('صور إضافية للبانوراما 📸:',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 80,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: b.imageUrls.length,
+                      itemBuilder: (_, i) => Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        width: 80,
+                        height: 80,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: AppSmartImage(
+                            imageUrl: b.imageUrls[i], fit: BoxFit.cover),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                Row(
+                  children: [
+                    if (b.whatsapp.isNotEmpty)
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF25D366),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                          icon: const Icon(Icons.chat, color: Colors.white),
+                          label: const Text('واتساب المعلن',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold)),
+                          onPressed: () async {
+                            final clean =
+                                PhoneHelper.formatForWhatsapp(b.whatsapp);
+                            final msg = Uri.encodeComponent(
+                                'مرحباً، بخصوص إعلانكم في بانوراما سوق سوريا الشامل (${b.title}):');
+                            final uri =
+                                Uri.parse('https://wa.me/$clean?text=$msg');
+                            try {
+                              if (await canLaunchUrl(uri)) {
+                                await launchUrl(uri,
+                                    mode: LaunchMode.externalApplication);
+                              }
+                            } catch (_) {}
+                          },
+                        ),
+                      ),
+                    if (b.whatsapp.isNotEmpty && b.phone.isNotEmpty)
+                      const SizedBox(width: 8),
+                    if (b.phone.isNotEmpty)
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _manager.primaryColor,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                          icon: const Icon(Icons.phone, color: Colors.white),
+                          label: const Text('اتصال بالمعلن',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold)),
+                          onPressed: () async {
+                            final uri = Uri.parse('tel:${b.phone}');
+                            try {
+                              if (await canLaunchUrl(uri)) {
+                                await launchUrl(uri);
+                              }
+                            } catch (_) {}
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      side: BorderSide(color: _manager.secondaryColor),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon: Icon(Icons.campaign, color: _manager.secondaryColor),
+                    label: Text(
+                      'تريد الإعلان في هذه المساحة البانورامية؟ تواصل معنا 📢',
+                      style: TextStyle(
+                          color: _manager.primaryColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _showContactAdminDialog();
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // رفع بنر إعلاني مباشر (مخصص حصرياً للمسؤولين فقط)
   Future<void> _pickAndUploadBannerDirectly() async {
+    // 🔒 التحقق الصارم: الزائر والمستخدم العادي ممنوعان تماماً من النشر
+    if (!_manager.isAdmin) {
+      _showContactAdminDialog();
+      return;
+    }
+
     try {
       final pickedList = await _picker.pickMultiImage(
         imageQuality: 75,
@@ -6075,7 +7399,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
                 content: Text(
-                    '✅ تم رفع وتحديث البنر الإعلاني بنجاح مع الصور المحددة!')),
+                    '✅ تم رفع وتحديث البنر الإعلاني بالسيرفر بنجاح!')),
           );
         }
       }
@@ -6882,8 +8206,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       ),
     );
   }
-
-  Widget _buildRoyalBannersSection() {
+Widget _buildRoyalBannersSection() {
     final targetGovernorate = _selectedGovernorate;
     final activeBanners = _manager.banners.where((b) {
       final notExpired = !b.isExpired && b.isActive;
@@ -6893,6 +8216,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       return notExpired && geoMatch;
     }).toList();
 
+    // 1. وضع البانوراما العريضة الموحدة (fullPanorama)
     if (_manager.bannerDisplayMode == BannerDisplayLayoutMode.fullPanorama) {
       return Container(
         margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -6915,28 +8239,51 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       );
     }
 
+    // 2. وضع التقسيم لقسمين مستقلين (dualGrid: قسم يمين وقسم يسار)
+    final rightSideBanners = <BannerItem>[];
+    final leftSideBanners = <BannerItem>[];
+
+    for (int i = 0; i < activeBanners.length; i++) {
+      if (i % 2 == 0) {
+        rightSideBanners.add(activeBanners[i]);
+      } else {
+        leftSideBanners.add(activeBanners[i]);
+      }
+    }
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      height: 98,
+      height: 105,
       child: Row(
         children: [
+          // القسم الأيمن المستقل
           Expanded(
-            child: activeBanners.isNotEmpty
-                ? _buildActiveBannerCard(activeBanners[0])
+            child: rightSideBanners.isNotEmpty
+                ? PageView.builder(
+                    itemCount: rightSideBanners.length,
+                    itemBuilder: (ctx, idx) =>
+                        _buildActiveBannerCard(rightSideBanners[idx]),
+                  )
                 : _buildEmptySlotBannerCard(
                     _manager.isAdmin
-                        ? 'مساحة إعلانية شاغرة\n(اضغط للإدارة ⚙️)'
-                        : 'مساحة إعلانية مميزة 🌟',
+                        ? 'مساحة إعلانية (القسم الأيمن)\n(اضغط للإدارة كمسؤول ⚙️)'
+                        : 'مساحة إعلانية شاغرة 🌟\nاحجز إعلانك هنا',
                   ),
           ),
           const SizedBox(width: 8),
+
+          // القسم الأيسر المستقل
           Expanded(
-            child: activeBanners.length > 1
-                ? _buildActiveBannerCard(activeBanners[1])
+            child: leftSideBanners.isNotEmpty
+                ? PageView.builder(
+                    itemCount: leftSideBanners.length,
+                    itemBuilder: (ctx, idx) =>
+                        _buildActiveBannerCard(leftSideBanners[idx]),
+                  )
                 : _buildEmptySlotBannerCard(
                     _manager.isAdmin
-                        ? 'مساحة بنر شاغرة\n(اضغط للإدارة ⚙️)'
-                        : 'مساحة إعلانية مميزة 🚀',
+                        ? 'مساحة إعلانية (القسم الأيسر)\n(اضغط للإدارة كمسؤول ⚙️)'
+                        : 'مساحة إعلانية شاغرة 🚀\nاحجز إعلانك هنا',
                   ),
           ),
         ],
@@ -6949,12 +8296,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       borderRadius: BorderRadius.circular(12),
       onTap: () {
         _manager.incrementBannerClick(banner.id);
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (ctx) => FullBannerDetailsScreen(banner: banner),
-          ),
-        );
+        // فتح لائحة تفاصيل البانوراما مع أزرار الاتصال والواتساب بالمعلن بدلاً من فتح المعرض
+        _showBannerDetailsSheet(banner);
       },
       child: Container(
         decoration: BoxDecoration(
@@ -7041,11 +8384,17 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       ),
     );
   }
-
-  Widget _buildEmptySlotBannerCard(String placeholderText) {
+Widget _buildEmptySlotBannerCard(String placeholderText) {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: _pickAndUploadBannerDirectly,
+      onTap: () {
+        // إذا كان مسؤولاً يسمح له بالرفع المباشر، أما إذا كان زائراً فيفتح له نافذة حجز البانوراما والتواصل مع الإدارة
+        if (_manager.isAdmin) {
+          _pickAndUploadBannerDirectly();
+        } else {
+          _showContactAdminDialog();
+        }
+      },
       child: Container(
         decoration: BoxDecoration(
           color: _manager.primaryColor.withOpacity(0.06),
@@ -7064,11 +8413,18 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2))
-                : Icon(Icons.add_photo_alternate_outlined,
-                    color: _manager.secondaryColor, size: 22),
+                : Icon(
+                    _manager.isAdmin
+                        ? Icons.add_photo_alternate_outlined
+                        : Icons.campaign_outlined,
+                    color: _manager.secondaryColor,
+                    size: 22,
+                  ),
             const SizedBox(height: 4),
             Text(
-              placeholderText,
+              _manager.isAdmin
+                  ? placeholderText
+                  : 'مساحة إعلانية شاغرة 📢\nاضغط هنا لحجز البانوراما مع الإدارة',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: _manager.primaryColor,
@@ -7196,7 +8552,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       ],
     );
   }
-
   Widget _buildCompactFacingGridAdCard(AdItem ad) {
     final isFav = _favoriteAdIds.contains(ad.id);
     final remaining = ad.soldRemainingDuration;
@@ -9626,65 +10981,210 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
       itemCount: pendingPayments.length,
       itemBuilder: (ctx, idx) {
         final p = pendingPayments[idx];
+        final isPanorama = p.requestType == 'panorama_booking';
+
         return Card(
-          margin: const EdgeInsets.only(bottom: 10),
+          margin: const EdgeInsets.only(bottom: 12),
           shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          elevation: 2,
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // شريط علوي بالنوع والمدة والمبلغ
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('طلب ترقية: ${p.planName}',
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isPanorama
+                            ? const Color(0xFF0284C7)
+                            : const Color(0xFFD4AF37),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        isPanorama
+                            ? 'حجز بانوراما: ${p.durationLabel}'
+                            : 'ترقية باقة: ${p.planName}',
                         style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 14)),
-                    Text('\$${p.amountUsd.toInt()} USD',
-                        style: const TextStyle(
-                            color: Colors.green, fontWeight: FontWeight.bold)),
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12),
+                      ),
+                    ),
+                    Text(
+                      '\$${p.amountUsd.toInt()} USD (${p.amountSyp.toInt()} ل.س)',
+                      style: const TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const Divider(height: 16),
+
+                // بيانات المشترك
                 Text('المشترك: ${p.userName} • هاتف: ${p.userPhone}',
-                    style: const TextStyle(fontSize: 12)),
-                Text('بوابة التحويل: ${p.gateway}',
-                    style: const TextStyle(fontSize: 12, color: Colors.blue)),
-                Text('رقم العملية / TXID: ${p.transactionRefOrTxId}',
                     style: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
+                        fontWeight: FontWeight.bold, fontSize: 13)),
+                if (p.userEmail.isNotEmpty)
+                  Text('البريد: ${p.userEmail}',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text('المحافظة: ${p.userGovernorate} • البوابة: ${p.gateway}',
+                    style: const TextStyle(fontSize: 12)),
+                Text('المرجع / TXID: ${p.transactionRefOrTxId}',
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blueGrey)),
+
+                // إذا كان الطلب حجز بانوراما نعرض عنوانها وصورها
+                if (isPanorama) ...[
+                  const SizedBox(height: 8),
+                  Text('عنوان البانوراما: ${p.bannerTitle}',
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.bold)),
+                  if (p.bannerSubtitle.isNotEmpty)
+                    Text('النص الفرعي: ${p.bannerSubtitle}',
+                        style:
+                            const TextStyle(fontSize: 11, color: Colors.grey)),
+                  if (p.bannerImages.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      height: 55,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: p.bannerImages.length,
+                        itemBuilder: (_, i) => Container(
+                          margin: const EdgeInsets.only(left: 6),
+                          width: 55,
+                          height: 55,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8)),
+                          child: AppSmartImage(
+                              imageUrl: p.bannerImages[i], fit: BoxFit.cover),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+                const SizedBox(height: 10),
+
+                // معاينة صورة إشعار الدفع 📸
+                if (p.receiptImageUrl != null &&
+                    p.receiptImageUrl!.isNotEmpty) ...[
+                  const Text('📸 صورة الإيصال المرفقة (المس لتكبيرها):',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                  const SizedBox(height: 6),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        ctx,
+                        MaterialPageRoute(
+                          builder: (_) => Scaffold(
+                            backgroundColor: Colors.black,
+                            appBar: AppBar(
+                              backgroundColor: Colors.black,
+                              title: const Text('معاينة إشعار الدفع',
+                                  style: TextStyle(color: Colors.white)),
+                              leading: IconButton(
+                                icon: const Icon(Icons.close,
+                                    color: Colors.white),
+                                onPressed: () => Navigator.pop(_),
+                              ),
+                            ),
+                            body: Center(
+                              child: InteractiveViewer(
+                                child: AppSmartImage(
+                                  imageUrl: p.receiptImageUrl!,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      height: 150,
+                      width: double.infinity,
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.grey.shade400),
+                      ),
+                      child: AppSmartImage(
+                        imageUrl: p.receiptImageUrl!,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // أزرار اتخاذ القرار (اعتماد أو رفض)
                 Row(
                   children: [
                     Expanded(
-                      child: ElevatedButton(
+                      child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green),
+                          backgroundColor: Colors.green,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.check_circle,
+                            color: Colors.white, size: 18),
+                        label: Text(
+                          isPanorama
+                              ? 'اعتماد وتفعيل البانوراما ✓'
+                              : 'اعتماد وترقية الحساب ✓',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12),
+                        ),
                         onPressed: () {
                           _manager.approvePaymentTransaction(p.id);
                           if (mounted) setState(() {});
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(isPanorama
+                                  ? '✅ تم تفعيل البانوراما في الواجهة الرئيسية لتبدأ مدة العرض!'
+                                  : '✅ تم ترقية حساب ${p.userName} وتفعيل اشتراكه بنجاح!'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
                         },
-                        child: const Text('اعتماد وترقية الحساب ✓',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold)),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: ElevatedButton(
+                      child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red),
-                        onPressed: () {
-                          _manager.rejectPaymentTransaction(
-                              p.id, 'إشعار غير مطابق');
-                          if (mounted) setState(() {});
-                        },
-                        child: const Text('رفض الإشعار ❌',
+                          backgroundColor: Colors.red,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.cancel,
+                            color: Colors.white, size: 18),
+                        label: const Text('رفض الإشعار ❌',
                             style: TextStyle(
                                 color: Colors.white,
-                                fontWeight: FontWeight.bold)),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12)),
+                        onPressed: () {
+                          _manager.rejectPaymentTransaction(
+                              p.id, 'الإشعار غير مطابق أو لم يصل التحويل');
+                          if (mounted) setState(() {});
+                        },
                       ),
                     ),
                   ],
