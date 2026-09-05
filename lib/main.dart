@@ -697,7 +697,7 @@ class BannerItem {
   final String instagramUrl;
   final String youtubeUrl;
   final String tiktokUrl;
-  final int slot; // 1 للقسم الأول، 2 للقسم الثاني
+  final int slot; // 1 للقسم الأيمن، 2 للقسم الأيسر
   final String badgeText;
   final Color badgeColor;
   final int displayDurationSeconds;
@@ -1119,8 +1119,7 @@ class AppSmartImage extends StatelessWidget {
     this.fit = BoxFit.cover,
     this.width,
     this.height,
-    this.memCacheWidth =
-        450, // تقليل حجم الصورة لتقليل استهلاك الإنترنت والذاكرة
+    this.memCacheWidth = 450,
     this.memCacheHeight = 450,
   }) : super(key: key);
 
@@ -1154,7 +1153,6 @@ class AppSmartImage extends StatelessWidget {
       }
     }
 
-    // Lazy Loading ذكي مع تحميل تدريجي وظهور ناعم Fade-in
     return Image.network(
       imageUrl,
       fit: fit,
@@ -1249,7 +1247,7 @@ class AppStateManager extends ChangeNotifier {
   double tickerFontSize = 12.0;
   double tickerSpeed = 1.2;
 
-  // أسعار الصرف السورية
+  // أسعار الصرف السورية المحدثة
   double exchangeRateUsdToSyp = 15200.0;
   double goldPrice21kSyp = 980000.0;
 
@@ -1260,7 +1258,7 @@ class AppStateManager extends ChangeNotifier {
   String currentUserPhone = '';
   String currentUserRole = 'user';
   String currentUserPlanId = 'plan_free';
-  DateTime? currentUserPlanExpiresAt; // تاريخ ووقت انتهاء اشتراك الباقة ⏳
+  DateTime? currentUserPlanExpiresAt;
   bool isCurrentUserVerified = false;
   int currentUserPositiveLikes = 0;
   int currentUserDislikes = 0;
@@ -1272,7 +1270,6 @@ class AppStateManager extends ChangeNotifier {
   bool get isModerator => isSuperAdmin || currentUserRole == 'moderator';
   bool get isAdmin => isSuperAdmin || isModerator;
 
-  // هل انتهت صلاحية باقة المشترك الحالية؟
   bool get isUserPlanExpired {
     if (currentUserPlanId == 'plan_free' || currentUserPlanExpiresAt == null) {
       return false;
@@ -1280,7 +1277,6 @@ class AppStateManager extends ChangeNotifier {
     return DateTime.now().isAfter(currentUserPlanExpiresAt!);
   }
 
-  // العداد التنازلي لمتبقي مدة الاشتراك المعروض للتاجر
   String get remainingPlanTimeFormatted {
     if (currentUserPlanId == 'plan_free' || currentUserPlanExpiresAt == null) {
       return 'باقة مجانية مفتوحة';
@@ -1293,7 +1289,6 @@ class AppStateManager extends ChangeNotifier {
     return 'متبقي: ${diff.inHours} ساعة و ${diff.inMinutes % 60} دقيقة ⏳';
   }
 
-  // فحص دوري ذكي: إذا انتهت المدة يعود الحساب تلقائياً للباقة المجانية
   void checkPlanExpiration() {
     if (isUserPlanExpired) {
       currentUserPlanId = 'plan_free';
@@ -1333,9 +1328,9 @@ class AppStateManager extends ChangeNotifier {
   int bannerDefaultIntervalSeconds = 3;
   bool isLoadingCloudData = false;
 
-  // اشتراكات المزامنة اللحظية (Real-Time Stream Subscriptions)
   StreamSubscription? _adsSubscription;
   StreamSubscription? _bannersSubscription;
+  StreamSubscription? _ratesSubscription;
 
   Future<void> sendTelegramAlert(String message) async {
     debugPrint('Admin Notification: $message');
@@ -1360,7 +1355,7 @@ class AppStateManager extends ChangeNotifier {
           debugPrint('Realtime Ads Error: $err');
         });
 
-    // 2. الاستماع الحي لجدول البانورامات والبنرات (Realtime Stream) لجميع الأجهزة
+    // 2. الاستماع الحي لجدول البانورامات والبنرات لجميع الأجهزة
     _bannersSubscription?.cancel();
     _bannersSubscription = Supabase.instance.client
         .from('banners')
@@ -1375,19 +1370,33 @@ class AppStateManager extends ChangeNotifier {
       debugPrint('Realtime Banners Error: $err');
     });
 
-    // 3. الاستماع الحي لضبط وضع العرض (دمج/تقسيم البانوراما) وأسعار الصرف
+    // 3. الاستماع الحي لأسعار الصرف لضمان تزامن فوري على كل الأجهزة
+    _ratesSubscription?.cancel();
+    try {
+      _ratesSubscription = Supabase.instance.client
+          .from('exchange_rates')
+          .stream(primaryKey: ['id']).listen((List<Map<String, dynamic>> data) {
+        if (data.isNotEmpty) {
+          final row = data.first;
+          if (row['usd_rate'] != null) {
+            exchangeRateUsdToSyp = (row['usd_rate'] as num).toDouble();
+          }
+          if (row['gold_price'] != null) {
+            goldPrice21kSyp = (row['gold_price'] as num).toDouble();
+          }
+          notifyListeners();
+        }
+      }, onError: (e) {
+        debugPrint('Rates Stream Notice: $e');
+      });
+    } catch (_) {}
+
+    // 4. الاستماع الحي لإعدادات وضع العرض (دمج/تقسيم البانوراما)
     try {
       Supabase.instance.client.from('app_settings').stream(
           primaryKey: ['key']).listen((List<Map<String, dynamic>> data) {
         for (var row in data) {
-          if (row['key'] == 'rates') {
-            if (row['usd_rate'] != null) {
-              exchangeRateUsdToSyp = (row['usd_rate'] as num).toDouble();
-            }
-            if (row['gold_price'] != null) {
-              goldPrice21kSyp = (row['gold_price'] as num).toDouble();
-            }
-          } else if (row['key'] == 'banner_settings') {
+          if (row['key'] == 'banner_settings') {
             if (row['mode'] == 'fullPanorama') {
               bannerDisplayMode = BannerDisplayLayoutMode.fullPanorama;
             } else if (row['mode'] == 'dualGrid') {
@@ -1412,6 +1421,7 @@ class AppStateManager extends ChangeNotifier {
   void dispose() {
     _adsSubscription?.cancel();
     _bannersSubscription?.cancel();
+    _ratesSubscription?.cancel();
     super.dispose();
   }
 
@@ -1617,6 +1627,27 @@ class AppStateManager extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // جلب أسعار الصرف والذهب من جدول exchange_rates المعتمد
+      try {
+        final ratesRes = await Supabase.instance.client
+            .from('exchange_rates')
+            .select()
+            .limit(1)
+            .timeout(const Duration(seconds: 8));
+
+        if (ratesRes is List && ratesRes.isNotEmpty) {
+          final data = ratesRes.first as Map<String, dynamic>;
+          if (data['usd_rate'] != null) {
+            exchangeRateUsdToSyp = (data['usd_rate'] as num).toDouble();
+          }
+          if (data['gold_price'] != null) {
+            goldPrice21kSyp = (data['gold_price'] as num).toDouble();
+          }
+        }
+      } catch (rateErr) {
+        debugPrint('Rates fetch err: $rateErr');
+      }
+
       final adsRes = await Supabase.instance.client
           .from('ads')
           .select()
@@ -1790,15 +1821,12 @@ class AppStateManager extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   Future<void> clearExpiredCache() async {
     try {
-      // 1. تفريغ كاش الصور المحفوظة في ذاكرة الرام للمحرك
       PaintingBinding.instance.imageCache.clear();
       PaintingBinding.instance.imageCache.clearLiveImages();
 
-      // 2. تنظيف الإعلانات والبانورامات منتهية الصلاحية من الذاكرة المحلية
       banners.removeWhere((b) => b.isExpired);
       ads.removeWhere((a) => a.shouldBeDeletedNow);
 
-      // 3. تحديث الكاش المحلي النظيف
       await saveBannersToOfflineCache(banners);
       await saveAdsToOfflineCache(ads);
 
@@ -1820,7 +1848,7 @@ class AppStateManager extends ChangeNotifier {
     required String userPhone,
     required String userEmail,
     required String userGovernorate,
-    String requestType = 'plan_subscription', // أو 'panorama_booking'
+    String requestType = 'plan_subscription',
     String durationLabel = 'شهري (30 يوم)',
     int durationHours = 720,
     Uint8List? receiptBytes,
@@ -1886,12 +1914,9 @@ class AppStateManager extends ChangeNotifier {
       audit.status = 'approved';
       audit.processedAt = DateTime.now();
 
-      // 1. إذا كان الطلب ترقية باقة مستخدم (شهري أو سنوي)
       if (audit.requestType == 'plan_subscription') {
         upgradeUserPlan(audit.planId, durationHours: audit.durationHours);
-      }
-      // 2. إذا كان الطلب حجز وتفعيل بانوراما إعلانية بالساعات أو الأيام
-      else if (audit.requestType == 'panorama_booking') {
+      } else if (audit.requestType == 'panorama_booking') {
         final newBanner = BannerItem(
           id: 'bn_${DateTime.now().millisecondsSinceEpoch}',
           imageUrls: audit.bannerImages.isNotEmpty
@@ -3317,12 +3342,29 @@ class CustomServerDrawer extends StatelessWidget {
 
 // ==============================================================================
 // 14. شاشة تفاصيل البنر والبانوراما الإعلانية (FullBannerDetailsScreen)
+// مزودة بجميع أزرار وروابط التواصل الاجتماعي والمواقع بالكامل
 // ==============================================================================
 class FullBannerDetailsScreen extends StatelessWidget {
   final BannerItem banner;
 
   const FullBannerDetailsScreen({Key? key, required this.banner})
       : super(key: key);
+
+  Future<void> _launchExternalUrl(String urlStr) async {
+    if (urlStr.trim().isEmpty) return;
+    String target = urlStr.trim();
+    if (!target.startsWith('http://') && !target.startsWith('https://')) {
+      target = 'https://$target';
+    }
+    try {
+      final uri = Uri.parse(target);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint('Launch URL err: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3349,7 +3391,7 @@ class FullBannerDetailsScreen extends StatelessWidget {
         physics: const BouncingScrollPhysics(),
         children: [
           SizedBox(
-            height: 220,
+            height: 230,
             child: PageView.builder(
               itemCount:
                   banner.imageUrls.isNotEmpty ? banner.imageUrls.length : 1,
@@ -3388,10 +3430,13 @@ class FullBannerDetailsScreen extends StatelessWidget {
                     Row(
                       children: [
                         const Icon(Icons.location_on,
-                            size: 14, color: Colors.grey),
+                            size: 15, color: Colors.red),
                         const SizedBox(width: 4),
-                        Text(banner.location,
-                            style: const TextStyle(fontSize: 12)),
+                        Text(
+                          banner.location,
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
                       ],
                     ),
                   ],
@@ -3415,24 +3460,27 @@ class FullBannerDetailsScreen extends StatelessWidget {
                 ],
                 const Divider(height: 24),
                 const Text(
-                  'تفاصيل العرض الترويجي:',
+                  'تفاصيل ومواصفات العرض الترويجي:',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   banner.description.isNotEmpty
                       ? banner.description
-                      : 'تواصل مع المعلن لمعرفة كامل التفاصيل والعروض الخاصة.',
+                      : 'تواصل مع المعلن مباشرة للاستفادة من كامل العروض والخدمات.',
                   style: const TextStyle(fontSize: 13, height: 1.6),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
+
+                // أزرار التواصل المباشر (اتصال وواتساب)
                 Row(
                   children: [
                     if (banner.phone.isNotEmpty)
                       Expanded(
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
+                            backgroundColor: manager.primaryColor,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -3440,7 +3488,7 @@ class FullBannerDetailsScreen extends StatelessWidget {
                           icon: const Icon(Icons.phone,
                               color: Colors.white, size: 18),
                           label: const Text(
-                            'اتصال',
+                            'اتصال بالمعلن',
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -3459,6 +3507,7 @@ class FullBannerDetailsScreen extends StatelessWidget {
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF25D366),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -3466,7 +3515,7 @@ class FullBannerDetailsScreen extends StatelessWidget {
                           icon: const Icon(Icons.chat,
                               color: Colors.white, size: 18),
                           label: const Text(
-                            'واتساب',
+                            'واتساب المعلن',
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -3475,7 +3524,10 @@ class FullBannerDetailsScreen extends StatelessWidget {
                           onPressed: () async {
                             final clean =
                                 PhoneHelper.formatForWhatsapp(banner.whatsapp);
-                            final uri = Uri.parse('https://wa.me/$clean');
+                            final msg = Uri.encodeComponent(
+                                'مرحباً، بخصوص إعلانكم في بانوراما سوق سوريا الشامل (${banner.title}):');
+                            final uri =
+                                Uri.parse('https://wa.me/$clean?text=$msg');
                             if (await canLaunchUrl(uri)) {
                               await launchUrl(uri,
                                   mode: LaunchMode.externalApplication);
@@ -3485,6 +3537,64 @@ class FullBannerDetailsScreen extends StatelessWidget {
                       ),
                   ],
                 ),
+                const SizedBox(height: 16),
+
+                // أزرار وحسابات التواصل الاجتماعي والمواقع (فيسبوك، إنستغرام، تيك توك، تيليجرام، يوتيوب، الموقع)
+                const Text(
+                  'قنوات وصفحات التواصل والموقع 🌐:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (banner.facebookUrl.isNotEmpty)
+                      ActionChip(
+                        avatar: const Icon(Icons.facebook,
+                            color: Color(0xFF1877F2), size: 18),
+                        label: const Text('فيسبوك'),
+                        onPressed: () => _launchExternalUrl(banner.facebookUrl),
+                      ),
+                    if (banner.instagramUrl.isNotEmpty)
+                      ActionChip(
+                        avatar: const Icon(Icons.camera_alt,
+                            color: Color(0xFFE4405F), size: 18),
+                        label: const Text('إنستغرام'),
+                        onPressed: () =>
+                            _launchExternalUrl(banner.instagramUrl),
+                      ),
+                    if (banner.telegramUrl.isNotEmpty)
+                      ActionChip(
+                        avatar: const Icon(Icons.send,
+                            color: Color(0xFF0088CC), size: 18),
+                        label: const Text('تيليجرام'),
+                        onPressed: () => _launchExternalUrl(banner.telegramUrl),
+                      ),
+                    if (banner.tiktokUrl.isNotEmpty)
+                      ActionChip(
+                        avatar: const Icon(Icons.music_note,
+                            color: Colors.black, size: 18),
+                        label: const Text('تيك توك'),
+                        onPressed: () => _launchExternalUrl(banner.tiktokUrl),
+                      ),
+                    if (banner.youtubeUrl.isNotEmpty)
+                      ActionChip(
+                        avatar: const Icon(Icons.play_circle_fill,
+                            color: Color(0xFFFF0000), size: 18),
+                        label: const Text('يوتيوب'),
+                        onPressed: () => _launchExternalUrl(banner.youtubeUrl),
+                      ),
+                    if (banner.linkUrl.isNotEmpty)
+                      ActionChip(
+                        avatar: const Icon(Icons.language,
+                            color: Color(0xFF0284C7), size: 18),
+                        label: const Text('الموقع الإلكتروني'),
+                        onPressed: () => _launchExternalUrl(banner.linkUrl),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 24),
               ],
             ),
           ),
@@ -4524,7 +4634,7 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
 
   @override
   void dispose() {
-    _commentsSubscription?.cancel(); // 👈 أضف هذا السطر هنا
+    _commentsSubscription?.cancel();
     _countdownTimer?.cancel();
     _pageController.dispose();
     _zoomController.dispose();
@@ -4555,7 +4665,6 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
     });
   }
 
-// استبدل دالة _loadComments القديمة بهذه الدالة اللحظية:
   void _loadComments() {
     setState(() => _isLoadingComments = true);
     _commentsSubscription?.cancel();
@@ -4577,7 +4686,6 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
         });
   }
 
-  // واستبدل دالة _submitComment القديمة بهذه الدالة الحقيقية:
   Future<void> _submitComment() async {
     final text = _commentController.text.trim();
     if (text.isEmpty) return;
@@ -4593,7 +4701,7 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
           : 'مستخدم',
       'user_phone': _manager.currentUserPhone,
       'content': text,
-      'comment': text, // لضمان التطابق مع أي اسم عامود في جدولك
+      'comment': text,
       'created_at': DateTime.now().toIso8601String(),
     };
 
@@ -4606,7 +4714,6 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
           .insert(commentMap)
           .timeout(const Duration(seconds: 8));
 
-      // إذا كان Stream متأخر قليلاً، نضيفه محلياً فوراً ليظهر بالثانية نفسها:
       if (!_adComments.any((c) => c.id == commentMap['id'])) {
         setState(() {
           _adComments.add(AdCommentItem.fromMap(commentMap));
@@ -4732,7 +4839,6 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
     );
   }
 
-  // التقييم المتزامن سحابياً ولحظياً في Supabase لجميع الأجهزة
   Future<void> _handleVote(bool isPositive) async {
     if (!_manager.isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -5877,7 +5983,7 @@ class SubscriptionPlansScreen extends StatefulWidget {
 class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   final AppStateManager _manager = AppStateManager();
   SubscriptionPlanItem? _selectedPlan;
-  String _selectedDurationType = 'monthly'; // 'monthly' أو 'yearly'
+  String _selectedDurationType = 'monthly';
   String _selectedGateway = 'SHAM_CASH';
   String _selectedGovernorate = 'دمشق';
 
@@ -5969,8 +6075,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     final durationLabel =
         isYearly ? 'اشتراك سنوي (12 شهر) 🌟' : 'اشتراك شهري (30 يوم) 📅';
     final basePrice = _selectedPlan!.priceUsd;
-    final finalPrice =
-        isYearly ? (basePrice * 10) : basePrice; // خصم شهرين مجاناً في السنوي
+    final finalPrice = isYearly ? (basePrice * 10) : basePrice;
 
     final success = await _manager.submitPaymentAuditRequest(
       planId: _selectedPlan!.id,
@@ -6051,7 +6156,6 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
-          // 1. اختيار مدة الاشتراك (شهري / سنوي)
           const Text('1. حدد فترة الاشتراك المطلوبة:',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
           const SizedBox(height: 8),
@@ -6079,8 +6183,6 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
             ],
           ),
           const SizedBox(height: 14),
-
-          // 2. اختيار الباقة
           const Text('2. اختر الباقة المناسبة لك:',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
           const SizedBox(height: 8),
@@ -6140,7 +6242,6 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
             );
           }),
           const SizedBox(height: 8),
-
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -6161,15 +6262,11 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
             ),
           ),
           const SizedBox(height: 14),
-
-          // 3. حسابات التحويل
           const Text('3. انسخ الحساب وحوّل المبلغ المطلوب:',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
           const SizedBox(height: 8),
           const ExclusivePaymentGatewayCard(),
           const SizedBox(height: 16),
-
-          // 4. استمارة معلومات المشترك
           const Text('4. بياناتك للتواصل والتوثيق:',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
           const SizedBox(height: 8),
@@ -6220,8 +6317,6 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
             },
           ),
           const SizedBox(height: 14),
-
-          // اختيار البوابة
           Row(
             children: [
               Expanded(
@@ -6252,8 +6347,6 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
             ),
           ),
           const SizedBox(height: 16),
-
-          // 5. إرفاق صورة إشعار الدفع
           const Text('5. إرفاق صورة الإيصال أو لقطة شاشة التحويل *:',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
           const SizedBox(height: 8),
@@ -6294,8 +6387,6 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
             ),
           ),
           const SizedBox(height: 20),
-
-          // زر الإرسال
           SizedBox(
             height: 50,
             child: ElevatedButton(
@@ -6324,9 +6415,6 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   }
 }
 
-// ==============================================================================
-// شاشة استمارة حجز البانورامات بالساعات والأيام (PanoramaBookingScreen)
-// ==============================================================================
 class PanoramaBookingScreen extends StatefulWidget {
   const PanoramaBookingScreen({Key? key}) : super(key: key);
 
@@ -6449,7 +6537,6 @@ class _PanoramaBookingScreenState extends State<PanoramaBookingScreen> {
 
     setState(() => _isSubmitting = true);
 
-    // رفع صور البانوراما
     final uploadedBannerUrls =
         await StorageUploadService.uploadMultipleImageBytes(
       bucketName: kStorageBucketBanners,
@@ -6457,7 +6544,6 @@ class _PanoramaBookingScreenState extends State<PanoramaBookingScreen> {
       prefix: 'book_pan',
     );
 
-    // رفع صورة الإيصال
     String? uploadedReceiptUrl;
     if (_receiptImageBytes != null) {
       uploadedReceiptUrl = await StorageUploadService.uploadImageBytes(
@@ -7034,6 +7120,35 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
     }
 
     try {
+      // 1. جلب أسعار الصرف والذهب الحية فوراً من السيرفر وتحديثها على كل الأجهزة
+      try {
+        final ratesRes = await Supabase.instance.client
+            .from('exchange_rates')
+            .select()
+            .limit(1)
+            .timeout(const Duration(seconds: 8));
+
+        if (ratesRes is List && ratesRes.isNotEmpty) {
+          final data = ratesRes.first as Map<String, dynamic>;
+          final usd = data['usd_rate'];
+          final gold = data['gold_price'];
+
+          if (usd != null) {
+            _manager.exchangeRateUsdToSyp = (usd as num).toDouble();
+          }
+          if (gold != null) {
+            _manager.goldPrice21kSyp = (gold as num).toDouble();
+          }
+          if (mounted) {
+            setState(() {});
+          }
+          _manager.notifyListeners();
+        }
+      } catch (rateErr) {
+        debugPrint('Supabase fetch rates notice: $rateErr');
+      }
+
+      // 2. جلب الإعلانات النشطة
       final res = await Supabase.instance.client
           .from('ads')
           .select()
@@ -7050,9 +7165,11 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
         _hasMoreAds = fetched.length >= _pageSize;
       }
 
+      // 3. جلب البانوراما الإعلانية الحية وتحديثها فوراً لجميع الأجهزة
       final bannerRes = await Supabase.instance.client
           .from('banners')
           .select()
+          .order('created_at', ascending: false)
           .timeout(const Duration(seconds: 10));
 
       if (bannerRes is List && (bannerRes).isNotEmpty) {
@@ -7061,6 +7178,10 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
             .toList();
         _manager.banners = fetchedBanners;
         _manager.saveBannersToOfflineCache(fetchedBanners);
+        if (mounted) {
+          setState(() {});
+        }
+        _manager.notifyListeners();
       }
 
       final pendingRes = await Supabase.instance.client
@@ -7144,9 +7265,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
     return true;
   }
 
-  // ===========================================================================
-  // عرض لائحة تفاصيل البانوراما التفاعلية للمستخدم عند لمس الصورة (بدلاً من فتح المعرض)
-  // ===========================================================================
   void _showBannerDetailsSheet(BannerItem b) {
     showModalBottomSheet(
       context: context,
@@ -7351,9 +7469,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
     );
   }
 
-  // رفع بنر إعلاني مباشر (مخصص حصرياً للمسؤولين فقط)
   Future<void> _pickAndUploadBannerDirectly() async {
-    // 🔒 التحقق الصارم: الزائر والمستخدم العادي ممنوعان تماماً من النشر
     if (!_manager.isAdmin) {
       _showContactAdminDialog();
       return;
@@ -7379,7 +7495,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
         imagesBytesList: bytesList,
         prefix: 'banner',
       );
-
       if (uploadedUrls.isNotEmpty) {
         final newBanner = BannerItem(
           id: 'bn_${DateTime.now().millisecondsSinceEpoch}',
@@ -7972,7 +8087,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       final matchesMaxP = _filterMaxPrice == null ||
           (ad.priceUsd != null && ad.priceUsd! <= _filterMaxPrice!);
 
-      // شرط العرض الحصري: المعتمد فقط لعامة المستخدمين، والإشراف يرى كل شيء
       final isApprovedForFeed =
           ad.status == 'approved' || (_manager.isModerator);
 
@@ -8230,7 +8344,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       return notExpired && geoMatch;
     }).toList();
 
-    // 1. وضع البانوراما العريضة الموحدة (fullPanorama)
     if (_manager.bannerDisplayMode == BannerDisplayLayoutMode.fullPanorama) {
       return Container(
         margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -8253,7 +8366,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       );
     }
 
-    // 2. وضع التقسيم لقسمين مستقلين (dualGrid: قسم يمين وقسم يسار)
     final rightSideBanners = <BannerItem>[];
     final leftSideBanners = <BannerItem>[];
 
@@ -8270,7 +8382,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       height: 105,
       child: Row(
         children: [
-          // القسم الأيمن المستقل
           Expanded(
             child: rightSideBanners.isNotEmpty
                 ? PageView.builder(
@@ -8285,8 +8396,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
                   ),
           ),
           const SizedBox(width: 8),
-
-          // القسم الأيسر المستقل
           Expanded(
             child: leftSideBanners.isNotEmpty
                 ? PageView.builder(
@@ -8310,7 +8419,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       borderRadius: BorderRadius.circular(12),
       onTap: () {
         _manager.incrementBannerClick(banner.id);
-        // فتح لائحة تفاصيل البانوراما مع أزرار الاتصال والواتساب بالمعلن بدلاً من فتح المعرض
         _showBannerDetailsSheet(banner);
       },
       child: Container(
@@ -8403,7 +8511,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () {
-        // إذا كان مسؤولاً يسمح له بالرفع المباشر، أما إذا كان زائراً فيفتح له نافذة حجز البانوراما والتواصل مع الإدارة
         if (_manager.isAdmin) {
           _pickAndUploadBannerDirectly();
         } else {
@@ -9667,7 +9774,6 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
-            // قسم رفع الصور
             const Text('صور السلعة والمعاينة *',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
             const SizedBox(height: 8),
@@ -9761,8 +9867,6 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // عنوان الإعلان
             TextFormField(
               controller: _titleController,
               decoration: InputDecoration(
@@ -9776,8 +9880,6 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
                   : null,
             ),
             const SizedBox(height: 12),
-
-            // القسم والقسم الفرعي
             Row(
               children: [
                 Expanded(
@@ -9839,8 +9941,6 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
               ],
             ),
             const SizedBox(height: 12),
-
-            // المحافظة والمنطقة
             Row(
               children: [
                 Expanded(
@@ -9878,8 +9978,6 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
               ],
             ),
             const SizedBox(height: 12),
-
-            // حالة السلعة
             DropdownButtonFormField<String>(
               value: _condition,
               isExpanded: true,
@@ -9898,8 +9996,6 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
               },
             ),
             const SizedBox(height: 12),
-
-            // السعر بالدولار والليرة مع التحويل اللحظي
             Row(
               children: [
                 Expanded(
@@ -9934,8 +10030,6 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
               ],
             ),
             const SizedBox(height: 12),
-
-            // تفعيل نظام المزاد العلني
             SwitchListTile(
               title: const Text('طرح السلعة في المزاد العلني ⚖️',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
@@ -9982,8 +10076,6 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
               ),
               const SizedBox(height: 12),
             ],
-
-            // أرقام الاتصال والواتساب
             Row(
               children: [
                 Expanded(
@@ -10021,8 +10113,6 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
               ],
             ),
             const SizedBox(height: 12),
-
-            // الوصف والمواصفات
             TextFormField(
               controller: _descController,
               maxLines: 5,
@@ -10037,8 +10127,6 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
                   : null,
             ),
             const SizedBox(height: 20),
-
-            // زر الحفظ والنشر
             SizedBox(
               height: 48,
               child: ElevatedButton(
@@ -10452,9 +10540,6 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // تبويب إدارة البانوراما: دمج، تقسيم، تسريع، رفع +15 صورة، وعداد تنازلي للاشتراك
-  // ---------------------------------------------------------------------------
   Widget _buildBannersManagementTab() {
     return ListView(
       physics: const BouncingScrollPhysics(),
@@ -10689,6 +10774,16 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
   void _showAddCustomBannerDialog() {
     final titleController = TextEditingController(text: 'عرض VIP خاص');
     final subtitleController = TextEditingController(text: 'سوق سوريا الشامل');
+    final descriptionController = TextEditingController();
+    final locationController = TextEditingController();
+    final phoneController = TextEditingController();
+    final whatsappController = TextEditingController();
+    final facebookController = TextEditingController();
+    final instagramController = TextEditingController();
+    final tiktokController = TextEditingController();
+    final telegramController = TextEditingController();
+    final youtubeController = TextEditingController();
+
     int subscriptionDays = 7;
     List<Uint8List> selectedImages = [];
     bool isUploading = false;
@@ -10709,25 +10804,103 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
                 bottom: MediaQuery.of(context).viewInsets.bottom + 16,
               ),
               child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text('إضافة بانوراما إعلانية بمواصفات خاصة 🌟',
                         style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 15)),
+                            fontWeight: FontWeight.bold, fontSize: 16)),
                     const SizedBox(height: 12),
                     TextField(
                       controller: titleController,
                       decoration: const InputDecoration(
-                          labelText: 'عنوان البانوراما الرئيسي',
+                          labelText: 'عنوان البانوراما الرئيسي *',
+                          prefixIcon: Icon(Icons.title),
                           border: OutlineInputBorder()),
                     ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: subtitleController,
                       decoration: const InputDecoration(
-                          labelText: 'النص الفرعي أو العرض',
+                          labelText: 'النص الفرعي أو التخفيض',
+                          prefixIcon: Icon(Icons.subtitles),
+                          border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: descriptionController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                          labelText: 'وصف وتفاصيل الإعلان بالكامل 📝',
+                          prefixIcon: Icon(Icons.description),
+                          border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: locationController,
+                      decoration: const InputDecoration(
+                          labelText: 'المحافظة أو العنوان (دمشق، حلب...) 📍',
+                          prefixIcon: Icon(Icons.location_on),
+                          border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: phoneController,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                          labelText: 'رقم هاتف الاتصال المباشر 📞',
+                          prefixIcon: Icon(Icons.phone),
+                          border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: whatsappController,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                          labelText: 'رقم أو رابط واتساب 💬',
+                          prefixIcon: Icon(Icons.chat),
+                          border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: facebookController,
+                      decoration: const InputDecoration(
+                          labelText: 'رابط صفحة فيسبوك 🌐',
+                          prefixIcon: Icon(Icons.facebook),
+                          border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: instagramController,
+                      decoration: const InputDecoration(
+                          labelText: 'رابط حساب إنستغرام 📸',
+                          prefixIcon: Icon(Icons.camera_alt),
+                          border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: tiktokController,
+                      decoration: const InputDecoration(
+                          labelText: 'رابط حساب تيك توك 🎵',
+                          prefixIcon: Icon(Icons.music_note),
+                          border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: telegramController,
+                      decoration: const InputDecoration(
+                          labelText: 'رابط قناة أو حساب تيليجرام ✈️',
+                          prefixIcon: Icon(Icons.send),
+                          border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: youtubeController,
+                      decoration: const InputDecoration(
+                          labelText: 'رابط قناة أو فيديو يوتيوب ▶️',
+                          prefixIcon: Icon(Icons.play_circle_fill),
                           border: OutlineInputBorder()),
                     ),
                     const SizedBox(height: 12),
@@ -10735,7 +10908,9 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
                         style: TextStyle(
                             fontWeight: FontWeight.bold, fontSize: 12)),
                     const SizedBox(height: 6),
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
                       children: [
                         ChoiceChip(
                           label: const Text('24 ساعة (يومي)'),
@@ -10743,14 +10918,12 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
                           onSelected: (v) =>
                               setModalState(() => subscriptionDays = 1),
                         ),
-                        const SizedBox(width: 6),
                         ChoiceChip(
                           label: const Text('أسبوع (7 أيام)'),
                           selected: subscriptionDays == 7,
                           onSelected: (v) =>
                               setModalState(() => subscriptionDays = 7),
                         ),
-                        const SizedBox(width: 6),
                         ChoiceChip(
                           label: const Text('شهر (30 يوم)'),
                           selected: subscriptionDays == 30,
@@ -10760,26 +10933,30 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
                       ],
                     ),
                     const SizedBox(height: 12),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0F172A)),
-                      icon:
-                          const Icon(Icons.photo_library, color: Colors.white),
-                      label: Text(
-                          'اختيار الصور من المعرض (${selectedImages.length} محددة)',
-                          style: const TextStyle(color: Colors.white)),
-                      onPressed: () async {
-                        final picker = ImagePicker();
-                        final picked = await picker.pickMultiImage(
-                            imageQuality: 75, maxWidth: 1200);
-                        if (picked.isNotEmpty) {
-                          List<Uint8List> bytes = [];
-                          for (var f in picked) {
-                            bytes.add(await f.readAsBytes());
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F172A),
+                            padding: const EdgeInsets.symmetric(vertical: 12)),
+                        icon: const Icon(Icons.photo_library,
+                            color: Colors.white),
+                        label: Text(
+                            'اختيار الصور من المعرض (${selectedImages.length} محددة)',
+                            style: const TextStyle(color: Colors.white)),
+                        onPressed: () async {
+                          final picker = ImagePicker();
+                          final picked = await picker.pickMultiImage(
+                              imageQuality: 75, maxWidth: 1200);
+                          if (picked.isNotEmpty) {
+                            List<Uint8List> bytes = [];
+                            for (var f in picked) {
+                              bytes.add(await f.readAsBytes());
+                            }
+                            setModalState(() => selectedImages = bytes);
                           }
-                          setModalState(() => selectedImages = bytes);
-                        }
-                      },
+                        },
+                      ),
                     ),
                     const SizedBox(height: 16),
                     SizedBox(
@@ -10800,11 +10977,46 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
                                 );
 
                                 if (urls.isNotEmpty) {
+                                  String mainLink = '';
+                                  if (facebookController.text
+                                      .trim()
+                                      .isNotEmpty) {
+                                    mainLink = facebookController.text.trim();
+                                  } else if (instagramController.text
+                                      .trim()
+                                      .isNotEmpty) {
+                                    mainLink = instagramController.text.trim();
+                                  } else if (telegramController.text
+                                      .trim()
+                                      .isNotEmpty) {
+                                    mainLink = telegramController.text.trim();
+                                  } else if (tiktokController.text
+                                      .trim()
+                                      .isNotEmpty) {
+                                    mainLink = tiktokController.text.trim();
+                                  } else if (youtubeController.text
+                                      .trim()
+                                      .isNotEmpty) {
+                                    mainLink = youtubeController.text.trim();
+                                  }
+
                                   final newBanner = BannerItem(
                                     id: 'bn_${DateTime.now().millisecondsSinceEpoch}',
                                     imageUrls: urls,
                                     title: titleController.text.trim(),
                                     subtitle: subtitleController.text.trim(),
+                                    description:
+                                        descriptionController.text.trim(),
+                                    location: locationController.text.trim(),
+                                    phone: phoneController.text.trim(),
+                                    whatsapp: whatsappController.text.trim(),
+                                    linkUrl: mainLink,
+                                    facebookUrl: facebookController.text.trim(),
+                                    telegramUrl: telegramController.text.trim(),
+                                    instagramUrl:
+                                        instagramController.text.trim(),
+                                    youtubeUrl: youtubeController.text.trim(),
+                                    tiktokUrl: tiktokController.text.trim(),
                                     badgeText: 'VIP ★',
                                     badgeColor: const Color(0xFFD4AF37),
                                     displayDurationSeconds:
@@ -10818,7 +11030,9 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
                                     await Supabase.instance.client
                                         .from('banners')
                                         .insert(newBanner.toMap());
-                                  } catch (_) {}
+                                  } catch (err) {
+                                    debugPrint('Insert banner err: $err');
+                                  }
 
                                   setState(() {
                                     _manager.banners.insert(0, newBanner);
@@ -11009,7 +11223,6 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // شريط علوي بالنوع والمدة والمبلغ
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -11042,8 +11255,6 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
                   ],
                 ),
                 const Divider(height: 16),
-
-                // بيانات المشترك
                 Text('المشترك: ${p.userName} • هاتف: ${p.userPhone}',
                     style: const TextStyle(
                         fontWeight: FontWeight.bold, fontSize: 13)),
@@ -11057,8 +11268,6 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                         color: Colors.blueGrey)),
-
-                // إذا كان الطلب حجز بانوراما نعرض عنوانها وصورها
                 if (isPanorama) ...[
                   const SizedBox(height: 8),
                   Text('عنوان البانوراما: ${p.bannerTitle}',
@@ -11090,8 +11299,6 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
                   ],
                 ],
                 const SizedBox(height: 10),
-
-                // معاينة صورة إشعار الدفع 📸
                 if (p.receiptImageUrl != null &&
                     p.receiptImageUrl!.isNotEmpty) ...[
                   const Text('📸 صورة الإيصال المرفقة (المس لتكبيرها):',
@@ -11143,8 +11350,6 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
                   ),
                   const SizedBox(height: 12),
                 ],
-
-                // أزرار اتخاذ القرار (اعتماد أو رفض)
                 Row(
                   children: [
                     Expanded(
@@ -11258,8 +11463,8 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
             _manager.notifyListeners();
 
             try {
-              await Supabase.instance.client.from('app_settings').upsert({
-                'key': 'rates',
+              await Supabase.instance.client.from('exchange_rates').upsert({
+                'id': 'current_rates',
                 'usd_rate': usd,
                 'gold_price': gold,
                 'updated_at': DateTime.now().toIso8601String(),
@@ -11431,7 +11636,6 @@ class _BannerDetailsScreenState extends State<BannerDetailsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. معرض الصور بتقليب يدوي ومؤشرات
             SizedBox(
               height: 260,
               child: Stack(
@@ -11474,13 +11678,11 @@ class _BannerDetailsScreenState extends State<BannerDetailsScreen> {
                 ],
               ),
             ),
-
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 2. العنوان والفرعي
                   Text(
                     b.title,
                     style: const TextStyle(
@@ -11501,8 +11703,6 @@ class _BannerDetailsScreenState extends State<BannerDetailsScreen> {
                     ),
                   ],
                   const SizedBox(height: 8),
-
-                  // 3. الموقع الجغرافي
                   Row(
                     children: [
                       const Icon(Icons.location_on,
@@ -11516,8 +11716,6 @@ class _BannerDetailsScreenState extends State<BannerDetailsScreen> {
                     ],
                   ),
                   const Divider(color: Colors.white24, height: 24),
-
-                  // 4. صندوق الوصف والشرح
                   if (b.description.isNotEmpty) ...[
                     const Text(
                       'التفاصيل والمعلومات:',
@@ -11546,8 +11744,6 @@ class _BannerDetailsScreenState extends State<BannerDetailsScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
-
-                  // 5. أزرار التواصل المباشر (هاتف + واتساب)
                   Row(
                     children: [
                       if (b.phone.isNotEmpty)
@@ -11591,8 +11787,6 @@ class _BannerDetailsScreenState extends State<BannerDetailsScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-
-                  // 6. منصات التواصل الاجتماعي
                   const Text(
                     'روابط التواصل والصفحات الرسمية:',
                     style: TextStyle(
@@ -11696,7 +11890,6 @@ class _BannerDetailsScreenState extends State<BannerDetailsScreen> {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // تهيئة اتصال Supabase السحابي الحقيقي
   try {
     await Supabase.initialize(
       url: kSupabaseUrl,
