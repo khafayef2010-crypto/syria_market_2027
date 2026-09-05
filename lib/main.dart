@@ -4433,28 +4433,6 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
     );
   }
 
-  Future<void> _submitComment() async {
-    if (!_manager.isLoggedIn) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('⚠️ يرجى تسجيل الدخول لكتابة تعليق.')),
-      );
-      return;
-    }
-
-    final text = _commentController.text.trim();
-    if (text.isEmpty) return;
-
-    await _manager.addAdComment(adId: _currentAd.id, commentText: text);
-    _commentController.clear();
-    _loadComments();
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ تمت إضافة استفسارك ومزامنته بنجاح!')),
-      );
-    }
-  }
-
   // التقييم المتزامن سحابياً ولحظياً في Supabase لجميع الأجهزة
   Future<void> _handleVote(bool isPositive) async {
     if (!_manager.isLoggedIn) {
@@ -8845,6 +8823,15 @@ class _FullChatNegotiationScreenState extends State<FullChatNegotiationScreen> {
       ),
     );
   }
+}
+
+class FullAdminPanelScreen extends StatefulWidget {
+  final int initialTab;
+
+  const FullAdminPanelScreen({Key? key, this.initialTab = 0}) : super(key: key);
+
+  @override
+  State<FullAdminPanelScreen> createState() => _FullAdminPanelScreenState();
 }
 
 class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
