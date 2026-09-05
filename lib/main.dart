@@ -1327,6 +1327,9 @@ class AppStateManager extends ChangeNotifier {
   bool isBannerAutoScrollEnabled = true;
   int bannerDefaultIntervalSeconds = 3;
   bool isLoadingCloudData = false;
+// إعدادات السرعة المستقلة للقسم الأيمن والقسم الأيسر
+  int bannerSlot1IntervalSeconds = 3; // سرعة القسم الأيمن (بالثواني)
+  int bannerSlot2IntervalSeconds = 4; // سرعة القسم الأيسر (بالثواني)
 
   StreamSubscription? _adsSubscription;
   StreamSubscription? _bannersSubscription;
@@ -1555,19 +1558,26 @@ class AppStateManager extends ChangeNotifier {
   // حفظ ونشر البنر مباشرة إلى سيرفر Supabase لكي يظهر على جميع الأجهزة فوراً
   Future<bool> saveBannerToCloud(BannerItem item) async {
     try {
+      // 1. الإرسال الفوري للسيرفر المركزي ليراها كل الناس
+      final response = await Supabase.instance.client
+          .from('banners')
+          .upsert(item.toMap())
+          .select();
+
+      debugPrint('✅ تم حفظ البانوراما في السيرفر بنجاح: $response');
+
+      // 2. تحديث القائمة فوراً
       final idx = banners.indexWhere((b) => b.id == item.id);
       if (idx != -1) {
         banners[idx] = item;
       } else {
         banners.insert(0, item);
       }
-      saveBannersToOfflineCache(banners);
+      await saveBannersToOfflineCache(banners);
       notifyListeners();
-
-      await Supabase.instance.client.from('banners').upsert(item.toMap());
       return true;
     } catch (e) {
-      debugPrint('Error uploading banner to cloud: $e');
+      debugPrint('❌ خطأ في إرسال البانوراما للسيرفر: $e');
       return false;
     }
   }
@@ -7475,6 +7485,49 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       return;
     }
 
+    // 1. سؤال المسؤول: لأي قسم تريد رفع البانوراما؟ (اليمين أم اليسار)
+    final int? selectedSlot = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.view_carousel, color: Color(0xFFD4AF37)),
+            SizedBox(width: 8),
+            Text('تحديد قسم البانوراما 🖼️',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          'اختر القسم الذي تريد نشر وتثبيت هذه البانوراما فيه لكي يراها كل الناس:',
+          style: TextStyle(fontSize: 13),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFD4AF37),
+              foregroundColor: const Color(0xFF0F172A),
+            ),
+            onPressed: () => Navigator.pop(ctx, 1),
+            child: const Text('القسم الأيمن 🔲 (Slot 1)',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0284C7),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, 2),
+            child: const Text('القسم الأيسر 🔲 (Slot 2)',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (selectedSlot == null) return;
+
+    // 2. اختيار الصور من المعرض
     try {
       final pickedList = await _picker.pickMultiImage(
         imageQuality: 75,
@@ -7490,51 +7543,64 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
         bytesList.add(b);
       }
 
+      // رفع الصور لسيرفر التخزين
       final uploadedUrls = await StorageUploadService.uploadMultipleImageBytes(
         bucketName: kStorageBucketBanners,
         imagesBytesList: bytesList,
-        prefix: 'banner',
+        prefix: 'banner_slot$selectedSlot',
       );
+
       if (uploadedUrls.isNotEmpty) {
         final newBanner = BannerItem(
           id: 'bn_${DateTime.now().millisecondsSinceEpoch}',
           imageUrls: uploadedUrls,
-          title: 'إعلان مميز جديد ✨',
+          title: selectedSlot == 1
+              ? 'إعلان مميز (القسم الأيمن) ✨'
+              : 'عرض خاص (القسم الأيسر) 🚀',
           subtitle: 'سوق سوريا الشامل',
-          description: 'تمت إضافته وحجزه بنجاح من المعرض مع صور متعددة',
+          description: 'تمت إضافته بنجاح للقسم رقم $selectedSlot',
           location: _selectedGovernorate,
           phone: kAppOwnerPhone,
           whatsapp: kAppOwnerWhatsApp,
-          badgeText: 'VIP ★',
-          badgeColor: _manager.secondaryColor,
+          slot: selectedSlot, // هنا تم تثبيت القسم المستقل (1 أو 2)
+          badgeText: selectedSlot == 1 ? 'VIP ★' : 'معتمد 100%',
+          badgeColor: selectedSlot == 1
+              ? _manager.secondaryColor
+              : const Color(0xFF22C55E),
           displayDurationSeconds: _manager.bannerDefaultIntervalSeconds,
           expiresAt: DateTime.now().add(const Duration(days: 30)),
         );
 
+        // حفظ محلي وسحابي مباشر في Supabase
         setState(() {
           _manager.banners.insert(0, newBanner);
         });
         _manager.saveBannersToOfflineCache(_manager.banners);
 
+        // إرسال مباشر لسيرفر Supabase لكي تظهر لجميع الناس في نفس اللحظة
         try {
           await Supabase.instance.client
               .from('banners')
-              .insert(newBanner.toMap())
-              .timeout(const Duration(seconds: 8));
-        } catch (_) {}
+              .upsert(newBanner.toMap());
+          debugPrint('✅ تم نشر البانوراما في السيرفر لجميع المستخدمين بنجاح!');
+        } catch (serverErr) {
+          debugPrint('❌ تنبيه خطأ سيرفر: $serverErr');
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content:
-                    Text('✅ تم رفع وتحديث البنر الإعلاني بالسيرفر بنجاح!')),
+            SnackBar(
+              content: Text(
+                  '✅ تم رفع ونشر البانوراما للقسم رقم ($selectedSlot) بنجاح وستظهر لكل الناس!'),
+              backgroundColor: Colors.green,
+            ),
           );
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تعذر فتح المعرض أو رفع البنر: $e')),
+          SnackBar(content: Text('تعذر رفع البنر: $e')),
         );
       }
     } finally {
@@ -8336,27 +8402,45 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
 
   Widget _buildRoyalBannersSection() {
     final targetGovernorate = _selectedGovernorate;
-    final activeBanners = _manager.banners.where((b) {
+
+    // بنرات القسم الأيمن فقط (slot 1)
+    final rightSideBanners = _manager.banners.where((b) {
       final notExpired = !b.isExpired && b.isActive;
       final geoMatch = b.location == 'كل المحافظات' ||
           targetGovernorate == 'كل المحافظات' ||
           b.location == targetGovernorate;
-      return notExpired && geoMatch;
+      return notExpired && geoMatch && b.slot == 1;
+    }).toList();
+
+    // بنرات القسم الأيسر فقط (slot 2)
+    final leftSideBanners = _manager.banners.where((b) {
+      final notExpired = !b.isExpired && b.isActive;
+      final geoMatch = b.location == 'كل المحافظات' ||
+          targetGovernorate == 'كل المحافظات' ||
+          b.location == targetGovernorate;
+      return notExpired && geoMatch && b.slot == 2;
     }).toList();
 
     if (_manager.bannerDisplayMode == BannerDisplayLayoutMode.fullPanorama) {
+      final allBanners = _manager.banners.where((b) {
+        final notExpired = !b.isExpired && b.isActive;
+        final geoMatch = b.location == 'كل المحافظات' ||
+            targetGovernorate == 'كل المحافظات' ||
+            b.location == targetGovernorate;
+        return notExpired && geoMatch;
+      }).toList();
+
       return Container(
         margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         height: 125,
-        child: activeBanners.isNotEmpty
+        child: allBanners.isNotEmpty
             ? PageView.builder(
                 controller: _bannerCarouselController,
-                itemCount: activeBanners.length,
+                itemCount: allBanners.length,
                 onPageChanged: (idx) =>
                     setState(() => _currentBannerIndex = idx),
-                itemBuilder: (ctx, idx) => _buildActiveBannerCard(
-                    activeBanners[idx],
-                    isPanorama: true),
+                itemBuilder: (ctx, idx) =>
+                    _buildActiveBannerCard(allBanners[idx], isPanorama: true),
               )
             : _buildEmptySlotBannerCard(
                 _manager.isAdmin
@@ -8366,22 +8450,12 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       );
     }
 
-    final rightSideBanners = <BannerItem>[];
-    final leftSideBanners = <BannerItem>[];
-
-    for (int i = 0; i < activeBanners.length; i++) {
-      if (i % 2 == 0) {
-        rightSideBanners.add(activeBanners[i]);
-      } else {
-        leftSideBanners.add(activeBanners[i]);
-      }
-    }
-
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       height: 105,
       child: Row(
         children: [
+          // القسم الأيمن المعزول
           Expanded(
             child: rightSideBanners.isNotEmpty
                 ? PageView.builder(
@@ -8392,10 +8466,11 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
                 : _buildEmptySlotBannerCard(
                     _manager.isAdmin
                         ? 'مساحة إعلانية (القسم الأيمن)\n(اضغط للإدارة كمسؤول ⚙️)'
-                        : 'مساحة إعلانية شاغرة 🌟\nاحجز إعلانك هنا',
+                        : 'مساحة إعلانية شاغرة (اليمين) 🌟\nاحجز إعلانك هنا',
                   ),
           ),
           const SizedBox(width: 8),
+          // القسم الأيسر المعزول
           Expanded(
             child: leftSideBanners.isNotEmpty
                 ? PageView.builder(
@@ -8406,7 +8481,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
                 : _buildEmptySlotBannerCard(
                     _manager.isAdmin
                         ? 'مساحة إعلانية (القسم الأيسر)\n(اضغط للإدارة كمسؤول ⚙️)'
-                        : 'مساحة إعلانية شاغرة 🚀\nاحجز إعلانك هنا',
+                        : 'مساحة إعلانية شاغرة (اليسار) 🚀\nاحجز إعلانك هنا',
                   ),
           ),
         ],
@@ -9440,7 +9515,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
   }
 }
 // ==============================================================================
-// 🌟 سوق سوريا الشامل 2028 - المنظومة السيادية الحقيقية المتكاملة 100%
+// 🌟 سوق سوريا الشامل 2027 - المنظومة السيادية الحقيقية المتكاملة 100%
 // [الدفعة 4 من أصل 4: شاشة إضافة الإعلان، غرف المحادثة، باقات الاشتراك، غرفة العمليات، و main()]
 // مربوطة بالكامل بالسيرفر الحقيقي وقواعد البيانات الحقيقية دون أي اختصار
 // ==============================================================================
@@ -11448,7 +11523,7 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
         const SizedBox(height: 16),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: _manager.primaryColor,
+            backgroundColor: const Color(0xFF0F172A),
             padding: const EdgeInsets.symmetric(vertical: 12),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
@@ -11458,33 +11533,48 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
             final usd = double.tryParse(_usdRateController.text.trim());
             final gold = double.tryParse(_goldPriceController.text.trim());
 
-            if (usd != null) _manager.exchangeRateUsdToSyp = usd;
-            if (gold != null) _manager.goldPrice21kSyp = gold;
-            _manager.notifyListeners();
+            if (usd == null || gold == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('يرجى إدخال أرقام صحيحة للأسعار')),
+              );
+              return;
+            }
 
+            // إرسال فوري ومباشر إلى سيرفر Supabase لجميع الأجهزة
             try {
-              await Supabase.instance.client.from('exchange_rates').upsert({
+              final res =
+                  await Supabase.instance.client.from('exchange_rates').upsert({
                 'id': 'current_rates',
                 'usd_rate': usd,
                 'gold_price': gold,
                 'updated_at': DateTime.now().toIso8601String(),
-              }).timeout(const Duration(seconds: 10));
-            } catch (e) {
-              debugPrint('Error updating rates in Supabase: $e');
-            }
+              }).select();
 
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                      '✅ تم تحديث ونشر أسعار الصرف والذهب لجميع الأجهزة بالسيرفر!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+              debugPrint('✅ تم نشر الأسعار في السيرفر بنجاح: $res');
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                        '✅ تم تحديث ونشر أسعار الصرف والذهب فوراً لجميع الأجهزة بالسيرفر!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            } catch (e) {
+              debugPrint('❌ خطأ في تحديث الأسعار بالسيرفر: $e');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('⚠️ تنبيه السيرفر: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             }
           },
           child: const Text(
-            'حفظ وتحديث الأسعار لحظياً ✨',
+            'حفظ وتحديث الأسعار لحظياً لجميع الناس ✨',
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
