@@ -1066,6 +1066,8 @@ class AppSmartImage extends StatelessWidget {
   final BoxFit fit;
   final double? width;
   final double? height;
+  final int? memCacheWidth;
+  final int? memCacheHeight;
 
   const AppSmartImage({
     Key? key,
@@ -1073,6 +1075,9 @@ class AppSmartImage extends StatelessWidget {
     this.fit = BoxFit.cover,
     this.width,
     this.height,
+    this.memCacheWidth =
+        450, // تقليل حجم الصورة لتقليل استهلاك الإنترنت والذاكرة
+    this.memCacheHeight = 450,
   }) : super(key: key);
 
   @override
@@ -1096,6 +1101,8 @@ class AppSmartImage extends StatelessWidget {
           fit: fit,
           width: width,
           height: height,
+          cacheWidth: memCacheWidth,
+          cacheHeight: memCacheHeight,
           errorBuilder: (_, __, ___) => _errorPlaceholder(),
         );
       } catch (_) {
@@ -1103,11 +1110,29 @@ class AppSmartImage extends StatelessWidget {
       }
     }
 
+    // Lazy Loading ذكي مع تحميل تدريجي وظهور ناعم Fade-in
     return Image.network(
       imageUrl,
       fit: fit,
       width: width,
       height: height,
+      cacheWidth: memCacheWidth,
+      cacheHeight: memCacheHeight,
+      frameBuilder: (ctx, child, frame, wasSynchronouslyLoaded) {
+        if (wasSynchronouslyLoaded || frame != null) {
+          return AnimatedOpacity(
+            opacity: frame != null ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+            child: child,
+          );
+        }
+        return Container(
+          width: width,
+          height: height,
+          color: const Color(0xFF1E293B),
+        );
+      },
       loadingBuilder: (ctx, child, progress) {
         if (progress == null) return child;
         return Container(
@@ -1184,7 +1209,7 @@ class AppStateManager extends ChangeNotifier {
   double exchangeRateUsdToSyp = 15200.0;
   double goldPrice21kSyp = 980000.0;
 
-  // بيانات المستخدم والجلسة الدائمة
+  // بيانات المستخدم والجلسة الدائمة// بيانات المستخدم والجلسة الدائمة
   String currentUserId = '';
   String currentUserName = 'زائر المنصة';
   String currentUserEmail = '';
@@ -1200,7 +1225,7 @@ class AppStateManager extends ChangeNotifier {
       currentUserRole == 'super_admin' ||
       kAuthorizedAdminEmails.contains(currentUserEmail.toLowerCase());
   bool get isModerator => isSuperAdmin || currentUserRole == 'moderator';
-
+  bool get isAdmin => isSuperAdmin || isModerator;
   // القوائم والبيانات الحقيقية
   List<AdItem> ads = [];
   List<BannerItem> banners = [];
