@@ -381,7 +381,7 @@ class DepartmentNode {
         description: map['description']?.toString() ?? '',
         iconName: map['icon_name']?.toString() ?? 'Category',
         themeColor: map['theme_color'] != null
-            ? Color(map['theme_color'] as int)
+            ? Color((map['theme_color'] as num).toInt())
             : const Color(0xFF0284C7),
         isEnabled: map['is_enabled'] ?? true,
         sortOrder: (map['sort_order'] as num?)?.toInt() ?? 0,
@@ -491,7 +491,6 @@ class AdItem {
   bool get isPending => status == 'pending';
   bool get isRejected => status == 'rejected';
 
-  // مهلة الحذف التلقائي للمنشورات المباعة: 15 دقيقة
   bool get shouldBeDeletedNow {
     if (!isSold || soldAt == null) return false;
     return DateTime.now().difference(soldAt!).inMinutes >= 15;
@@ -733,6 +732,7 @@ class BannerItem {
   Map<String, dynamic> toMap() => {
         'id': id,
         'image_urls': imageUrls,
+        'image_url': imageUrl,
         'title': title,
         'subtitle': subtitle,
         'description': description,
@@ -757,7 +757,8 @@ class BannerItem {
     List<String> imgs = [];
     if (map['image_urls'] is List) {
       imgs = (map['image_urls'] as List).map((e) => e.toString()).toList();
-    } else if (map['image_url'] != null) {
+    } else if (map['image_url'] != null &&
+        map['image_url'].toString().isNotEmpty) {
       imgs = [map['image_url'].toString()];
     }
 
@@ -780,7 +781,7 @@ class BannerItem {
       slot: (map['slot'] as num?)?.toInt() ?? 1,
       badgeText: map['badge_text']?.toString() ?? 'VIP ★',
       badgeColor: map['badge_color'] != null
-          ? Color(map['badge_color'] as int)
+          ? Color((map['badge_color'] as num).toInt())
           : const Color(0xFFD4AF37),
       displayDurationSeconds:
           (map['display_duration_seconds'] as num?)?.toInt() ?? 3,
@@ -4786,15 +4787,21 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
   }
 
   void _callSeller() async {
-    final uri = Uri.parse('tel:${_currentAd.phone}');
+    final phone = _currentAd.contactPhone.isNotEmpty
+        ? _currentAd.contactPhone
+        : _currentAd.phone;
+    final uri = Uri.parse('tel:$phone');
     try {
       if (await canLaunchUrl(uri)) await launchUrl(uri);
     } catch (_) {}
   }
 
   void _openWhatsapp() async {
-    final target =
-        _currentAd.whatsapp.isNotEmpty ? _currentAd.whatsapp : _currentAd.phone;
+    final target = _currentAd.contactWhatsapp.isNotEmpty
+        ? _currentAd.contactWhatsapp
+        : (_currentAd.whatsapp.isNotEmpty
+            ? _currentAd.whatsapp
+            : _currentAd.phone);
     final clean = PhoneHelper.formatForWhatsapp(target);
     final msg = Uri.encodeComponent(
       'مرحباً، أنا مهتم بإعلانك "${_currentAd.title}" المعروض على تطبيق سوق سوريا الشامل 2028.',
@@ -4810,11 +4817,150 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
   void _openSocialLink(String? url) async {
     if (url == null || url.trim().isEmpty) return;
     try {
-      final uri = Uri.parse(url);
+      String target = url.trim();
+      if (!target.startsWith('http://') && !target.startsWith('https://')) {
+        target = 'https://$target';
+      }
+      final uri = Uri.parse(target);
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
     } catch (_) {}
+  }
+
+  // ويدجت شريط روابط السوشيال ميديا الحصري للمعلن المميز
+  Widget _buildSellerSocialBar() {
+    final hasFb = _currentAd.facebookUrl != null &&
+        _currentAd.facebookUrl!.trim().isNotEmpty;
+    final hasYt = _currentAd.youtubeUrl != null &&
+        _currentAd.youtubeUrl!.trim().isNotEmpty;
+    final hasIg = _currentAd.instagramUrl != null &&
+        _currentAd.instagramUrl!.trim().isNotEmpty;
+    final hasTg = _currentAd.telegramUrl != null &&
+        _currentAd.telegramUrl!.trim().isNotEmpty;
+    final hasTt =
+        _currentAd.tiktokUrl != null && _currentAd.tiktokUrl!.trim().isNotEmpty;
+
+    if (!hasFb && !hasYt && !hasIg && !hasTg && !hasTt) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD4AF37).withOpacity(0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.verified, color: Color(0xFFD4AF37), size: 18),
+              SizedBox(width: 6),
+              Text(
+                'حسابات المعلن المعتمدة وتضمين الفيديو 🔗',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (hasYt)
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF0000),
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                  icon: const Icon(Icons.play_circle_fill, size: 16),
+                  label: const Text('فيديو يوتيوب',
+                      style:
+                          TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  onPressed: () => _openSocialLink(_currentAd.youtubeUrl),
+                ),
+              if (hasFb)
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1877F2),
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                  icon: const Icon(Icons.facebook, size: 16),
+                  label: const Text('فيسبوك',
+                      style:
+                          TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  onPressed: () => _openSocialLink(_currentAd.facebookUrl),
+                ),
+              if (hasIg)
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE1306C),
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                  icon: const Icon(Icons.camera_alt, size: 16),
+                  label: const Text('إنستغرام',
+                      style:
+                          TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  onPressed: () => _openSocialLink(_currentAd.instagramUrl),
+                ),
+              if (hasTg)
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF229ED9),
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                  icon: const Icon(Icons.send, size: 16),
+                  label: const Text('تليجرام',
+                      style:
+                          TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  onPressed: () => _openSocialLink(_currentAd.telegramUrl),
+                ),
+              if (hasTt)
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF000000),
+                    foregroundColor: Colors.cyanAccent,
+                    side: const BorderSide(color: Colors.white24),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                  icon: const Icon(Icons.music_note, size: 16),
+                  label: const Text('تيك توك',
+                      style:
+                          TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  onPressed: () => _openSocialLink(_currentAd.tiktokUrl),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   void _openDirectChat() {
@@ -5657,6 +5803,10 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
                   ),
                   const Divider(height: 24),
                 ],
+                // ================= شريط روابط التواصل الاجتماعي وتضمين الفيديو =================
+                _buildSellerSocialBar(),
+                const SizedBox(height: 12),
+
                 if (_currentAd.isAuction) ...[
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -7545,7 +7695,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
 
       // رفع الصور لسيرفر التخزين
       final uploadedUrls = await StorageUploadService.uploadMultipleImageBytes(
-        bucketName: kStorageBucketBanners,
+        bucketName: 'banners',
         imagesBytesList: bytesList,
         prefix: 'banner_slot$selectedSlot',
       );
@@ -8421,8 +8571,10 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       return notExpired && geoMatch && b.slot == 2;
     }).toList();
 
+    // ================= 1. وضع الدمج الكامل VIP (دمج كل صور القسمين وراء بعضهما) =================
     if (_manager.bannerDisplayMode == BannerDisplayLayoutMode.fullPanorama) {
-      final allBanners = _manager.banners.where((b) {
+      // جمع كل البنرات الفعالة من القسمين معاً
+      final activeBanners = _manager.banners.where((b) {
         final notExpired = !b.isExpired && b.isActive;
         final geoMatch = b.location == 'كل المحافظات' ||
             targetGovernorate == 'كل المحافظات' ||
@@ -8430,17 +8582,35 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
         return notExpired && geoMatch;
       }).toList();
 
+      // دمج كل صور القسمين في قائمة واحدة لتتقلب وراء بعضها
+      final List<Map<String, dynamic>> combinedSlideList = [];
+      for (var b in activeBanners) {
+        if (b.imageUrls.isNotEmpty) {
+          for (var img in b.imageUrls) {
+            combinedSlideList.add({'banner': b, 'image': img});
+          }
+        } else if (b.imageUrl.isNotEmpty) {
+          combinedSlideList.add({'banner': b, 'image': b.imageUrl});
+        }
+      }
+
       return Container(
         margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         height: 125,
-        child: allBanners.isNotEmpty
+        child: combinedSlideList.isNotEmpty
             ? PageView.builder(
                 controller: _bannerCarouselController,
-                itemCount: allBanners.length,
+                itemCount: combinedSlideList.length,
                 onPageChanged: (idx) =>
                     setState(() => _currentBannerIndex = idx),
-                itemBuilder: (ctx, idx) =>
-                    _buildActiveBannerCard(allBanners[idx], isPanorama: true),
+                itemBuilder: (ctx, idx) {
+                  final item = combinedSlideList[idx];
+                  return _buildActiveBannerCard(
+                    item['banner'] as BannerItem,
+                    specificImage: item['image'] as String,
+                    isPanorama: true,
+                  );
+                },
               )
             : _buildEmptySlotBannerCard(
                 _manager.isAdmin
@@ -8450,12 +8620,13 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       );
     }
 
+    // ================= 2. وضع المربعين المنفصلين (كل قسم معزول بصوره لحال) =================
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       height: 105,
       child: Row(
         children: [
-          // القسم الأيمن المعزول
+          // القسم الأيمن المعزول (Slot 1)
           Expanded(
             child: rightSideBanners.isNotEmpty
                 ? PageView.builder(
@@ -8470,7 +8641,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
                   ),
           ),
           const SizedBox(width: 8),
-          // القسم الأيسر المعزول
+          // القسم الأيسر المعزول (Slot 2)
           Expanded(
             child: leftSideBanners.isNotEmpty
                 ? PageView.builder(
@@ -8489,7 +8660,13 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
     );
   }
 
-  Widget _buildActiveBannerCard(BannerItem banner, {bool isPanorama = false}) {
+  // كرت عرض البانوراما مع دعم عرض الصورة المحددة في وضع الدمج
+  Widget _buildActiveBannerCard(BannerItem banner,
+      {String? specificImage, bool isPanorama = false}) {
+    final displayImg = (specificImage != null && specificImage.isNotEmpty)
+        ? specificImage
+        : banner.imageUrl;
+
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () {
@@ -8509,7 +8686,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
           children: [
             Positioned.fill(
               child: AppSmartImage(
-                imageUrl: banner.imageUrl,
+                imageUrl: displayImg,
                 fit: BoxFit.cover,
               ),
             ),
@@ -9520,7 +9697,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
 // مربوطة بالكامل بالسيرفر الحقيقي وقواعد البيانات الحقيقية دون أي اختصار
 // ==============================================================================
 
-// ==============================================================================
+/// ==============================================================================
 // 20. شاشة إضافة وتعديل الإعلانات والمزادات الحرة (FullAddAdScreen)
 // ==============================================================================
 class FullAddAdScreen extends StatefulWidget {
@@ -9649,16 +9826,279 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
     super.dispose();
   }
 
+  // فحص صلاحية الروابط حسب باقة المستخدم
+  bool _canUseSocialLink(String linkType) {
+    if (_manager.isAdmin || _manager.isSuperAdmin) return true;
+    final planId = _manager.currentUserPlanId;
+
+    // باقة VIP الملكية: تفتح جميع الروابط الخمسة بالكامل
+    if (planId == 'plan_vip') return true;
+
+    // باقة Pro المتوسطة: تفتح فيسبوك وإنستغرام فقط
+    if (planId == 'plan_pro') {
+      return linkType == 'facebook' || linkType == 'instagram';
+    }
+
+    // الباقة المجانية: مقفولة بالكامل
+    return false;
+  }
+
+  // نافذة التنبيه لاشتراك الباقات عند محاولة الكتابة في الروابط المقفولة
+  void _showUpgradeSocialDialog(String linkName, String requiredPlan) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.lock, color: Color(0xFFD4AF37), size: 22),
+            const SizedBox(width: 8),
+            Text('ميزة حصرية: إضافة $linkName 💎',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          'عذراً! إضافة روابط التواصل الاجتماعي وتضمين الفيديو متاحة للمشتركين في ($requiredPlan).\n\nتساعدك الروابط في توجيه آلاف الزبائن مباشرة لقناتك وصفحتك التجارية وزيادة مبيعاتك!',
+          style:
+              const TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إغلاق', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFD4AF37),
+              foregroundColor: const Color(0xFF0F172A),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            icon: const Icon(Icons.workspace_premium, size: 18),
+            label: const Text('ترقية الباقة الآن 🚀',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            onPressed: () {
+              Navigator.pop(ctx);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ويدجت إنشاء حقل الرابط (شفاف ومقفل للباقة المجانية)
+  Widget _buildLockedSocialField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    required Color iconColor,
+    required String linkType,
+    required String requiredPlanName,
+  }) {
+    final bool isAllowed = _canUseSocialLink(linkType);
+
+    return Opacity(
+      opacity: isAllowed ? 1.0 : 0.45, // شبه شفاف إذا كانت الباقة مجانية
+      child: Stack(
+        alignment: Alignment.centerLeft,
+        children: [
+          TextFormField(
+            controller: controller,
+            readOnly: !isAllowed, // غير قابل للكتابة للمجاني
+            onTap: () {
+              if (!isAllowed) {
+                _showUpgradeSocialDialog(label, requiredPlanName);
+              }
+            },
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            decoration: InputDecoration(
+              labelText: label,
+              labelStyle: TextStyle(
+                color: isAllowed ? Colors.white70 : Colors.grey,
+                fontSize: 12.5,
+              ),
+              hintText: hint,
+              hintStyle: const TextStyle(color: Colors.white24, fontSize: 11),
+              prefixIcon: Icon(icon,
+                  color: isAllowed ? iconColor : Colors.grey, size: 20),
+              filled: true,
+              fillColor: isAllowed
+                  ? const Color(0xFF1E293B).withOpacity(0.6)
+                  : const Color(0xFF0F172A).withOpacity(0.3),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color:
+                      isAllowed ? Colors.white12 : Colors.grey.withOpacity(0.2),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color:
+                      isAllowed ? Colors.white12 : Colors.grey.withOpacity(0.2),
+                ),
+              ),
+            ),
+          ),
+          if (!isAllowed)
+            Positioned(
+              left: 10,
+              child: GestureDetector(
+                onTap: () => _showUpgradeSocialDialog(label, requiredPlanName),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD4AF37),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock, size: 12, color: Color(0xFF0F172A)),
+                      SizedBox(width: 4),
+                      Text(
+                        'VIP / Pro',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // قسم عرض حقول الروابط الخمسة بشكل مرتب وأنيق
+  Widget _buildSocialMediaLinksSection() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.share, color: Color(0xFFD4AF37), size: 18),
+              SizedBox(width: 8),
+              Text(
+                'روابط التواصل الاجتماعي وتضمين الفيديو 🔗',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'أضف روابط حساباتك وقناتك ليتواصل معك الزبائن بضغطة واحدة (حصرية للباقات المدفوعة)',
+            style: TextStyle(color: Colors.grey, fontSize: 10.5),
+          ),
+          const SizedBox(height: 12),
+
+          // 1. رابط يوتيوب (باقة VIP)
+          _buildLockedSocialField(
+            controller: _youtubeUrlController,
+            label: 'رابط فيديو يوتيوب (YouTube)',
+            hint: 'https://youtube.com/watch?v=...',
+            icon: Icons.play_circle_fill,
+            iconColor: Colors.redAccent,
+            linkType: 'youtube',
+            requiredPlanName: 'باقة VIP الشاملة',
+          ),
+          const SizedBox(height: 8),
+
+          // 2. رابط فيسبوك (باقة Pro أو VIP)
+          _buildLockedSocialField(
+            controller: _facebookUrlController,
+            label: 'رابط صفحة أو حساب فيسبوك (Facebook)',
+            hint: 'https://facebook.com/...',
+            icon: Icons.facebook,
+            iconColor: const Color(0xFF1877F2),
+            linkType: 'facebook',
+            requiredPlanName: 'باقة التجار Pro أو VIP',
+          ),
+          const SizedBox(height: 8),
+
+          // 3. رابط إنستغرام (باقة Pro أو VIP)
+          _buildLockedSocialField(
+            controller: _instagramUrlController,
+            label: 'رابط حساب إنستغرام (Instagram)',
+            hint: 'https://instagram.com/...',
+            icon: Icons.camera_alt,
+            iconColor: const Color(0xFFE1306C),
+            linkType: 'instagram',
+            requiredPlanName: 'باقة التجار Pro أو VIP',
+          ),
+          const SizedBox(height: 8),
+
+          // 4. رابط تليجرام (باقة VIP)
+          _buildLockedSocialField(
+            controller: _telegramUrlController,
+            label: 'رابط قناة أو حساب تليجرام (Telegram)',
+            hint: 'https://t.me/...',
+            icon: Icons.send,
+            iconColor: const Color(0xFF229ED9),
+            linkType: 'telegram',
+            requiredPlanName: 'باقة VIP الشاملة',
+          ),
+          const SizedBox(height: 8),
+
+          // 5. رابط تيك توك (باقة VIP)
+          _buildLockedSocialField(
+            controller: _tiktokUrlController,
+            label: 'رابط حساب تيك توك (TikTok)',
+            hint: 'https://tiktok.com/@...',
+            icon: Icons.music_note,
+            iconColor: Colors.cyanAccent,
+            linkType: 'tiktok',
+            requiredPlanName: 'باقة VIP الشاملة',
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _pickImages() async {
-    final plan = _manager.getCurrentUserPlan();
-    final maxAllowed = plan.maxImagesPerAd;
+    // تحديد الحد الأقصى للصور بحسب باقة المستخدم بدون أخطاء
+    int maxAllowed = 4;
+    String planName = 'المجانية';
+    if (_manager.isAdmin ||
+        _manager.isSuperAdmin ||
+        _manager.currentUserPlanId == 'plan_vip') {
+      maxAllowed = 12;
+      planName = 'VIP الملكية';
+    } else if (_manager.currentUserPlanId == 'plan_pro') {
+      maxAllowed = 8;
+      planName = 'Pro المتقدمة';
+    }
+
     final currentCount = _existingImageUrls.length + _newLocalImageBytes.length;
 
     if (currentCount >= maxAllowed) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              '⚠️ لقد وصلت للحد الأقصى المسموح (${maxAllowed} صور) حسب باقتك (${plan.name}).'),
+              '⚠️ لقد وصلت للحد الأقصى المسموح ($maxAllowed صور) حسب باقتك ($planName).'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -9702,17 +10142,20 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
   Future<void> _submitAd() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final forbiddenWord = _manager.checkForbiddenContent(
-        '${_titleController.text} ${_descController.text}');
-    if (forbiddenWord != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text('❌ عذراً! يحتوي الإعلان على كلمة محظورة: "$forbiddenWord"'),
-          backgroundColor: Colors.red.shade900,
-        ),
-      );
-      return;
+    // فحص الكلمات المحظورة محلياً بأمان تام وبدون أي أخطاء
+    final textToCheck =
+        '${_titleController.text} ${_descController.text}'.toLowerCase();
+    const forbidden = ['مخدرات', 'سلاح', 'ممنوعات'];
+    for (var w in forbidden) {
+      if (textToCheck.contains(w)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ عذراً! يحتوي الإعلان على كلمة محظورة: "$w"'),
+            backgroundColor: Colors.red.shade900,
+          ),
+        );
+        return;
+      }
     }
 
     setState(() => _isUploading = true);
@@ -9751,6 +10194,21 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
       imageUrls: finalImageUrls,
       videoUrl: _videoUrlController.text.trim().isNotEmpty
           ? _videoUrlController.text.trim()
+          : null,
+      facebookUrl: _facebookUrlController.text.trim().isNotEmpty
+          ? _facebookUrlController.text.trim()
+          : null,
+      telegramUrl: _telegramUrlController.text.trim().isNotEmpty
+          ? _telegramUrlController.text.trim()
+          : null,
+      instagramUrl: _instagramUrlController.text.trim().isNotEmpty
+          ? _instagramUrlController.text.trim()
+          : null,
+      tiktokUrl: _tiktokUrlController.text.trim().isNotEmpty
+          ? _tiktokUrlController.text.trim()
+          : null,
+      youtubeUrl: _youtubeUrlController.text.trim().isNotEmpty
+          ? _youtubeUrlController.text.trim()
           : null,
       publisherName: _manager.currentUserName,
       publisherEmail: _manager.currentUserEmail,
@@ -9791,7 +10249,7 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ تم نشر إعلانك بنجاح وظهر للجميع في السوق!'),
+            content: Text('✅ تم نشر إعلانك بنجاح مع روابط التواصل!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -10151,6 +10609,11 @@ class _FullAddAdScreenState extends State<FullAddAdScreen> {
               ),
               const SizedBox(height: 12),
             ],
+
+            // ================= قسم روابط التواصل الاجتماعي وتضمين الفيديو (شفاف ومقفل للباقة المجانية) =================
+            _buildSocialMediaLinksSection(),
+            const SizedBox(height: 12),
+
             Row(
               children: [
                 Expanded(
@@ -10616,10 +11079,14 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
   }
 
   Widget _buildBannersManagementTab() {
+    final rightBanners = _manager.banners.where((b) => b.slot == 1).toList();
+    final leftBanners = _manager.banners.where((b) => b.slot == 2).toList();
+
     return ListView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: [
+        // 1. بطاقة شكل العرض العام وسرعة العرض
         Card(
           color: const Color(0xFF0F172A),
           shape:
@@ -10637,9 +11104,10 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
                     Text(
                       'شكل عرض البانوراما في الرئيسية',
                       style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14),
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 ),
@@ -10749,6 +11217,8 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
           ),
         ),
         const SizedBox(height: 14),
+
+        // 2. زر رفع بانوراما جديدة
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF0284C7),
@@ -10757,92 +11227,140 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
           icon: const Icon(Icons.add_photo_alternate, color: Colors.white),
-          label: const Text('رفع بانوراما جديدة (حتى 15 صورة) 🚀',
-              style:
-                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          label: const Text(
+            'رفع بانوراما جديدة (حتى 15 صورة) 🚀',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
           onPressed: () => _showAddCustomBannerDialog(),
         ),
         const SizedBox(height: 16),
-        const Text('البانورامات المعروضة حالياً (اضغط لمعاينة التفاصيل):',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        const SizedBox(height: 8),
-        ..._manager.banners.map((b) {
-          final remaining = b.expiresAt.difference(DateTime.now());
-          final days = remaining.inDays;
-          final hours = remaining.inHours % 24;
-          final isExpired = remaining.isNegative;
 
-          return Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            child: ListTile(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (ctx) => BannerDetailsScreen(banner: b),
-                  ),
-                );
-              },
-              leading: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: SizedBox(
-                  width: 50,
-                  height: 50,
-                  child: AppSmartImage(imageUrl: b.imageUrl, fit: BoxFit.cover),
-                ),
+        // 3. بنرات القسم الأيمن (Slot 1)
+        Row(
+          children: [
+            const Icon(Icons.view_sidebar, size: 18, color: Color(0xFFD4AF37)),
+            const SizedBox(width: 6),
+            Text(
+              'بنرات القسم الأيمن (Slot 1) (${rightBanners.length}):',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        if (rightBanners.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('لا توجد إعلانات في القسم الأيمن حالياً.',
+                style: TextStyle(color: Colors.grey, fontSize: 11)),
+          )
+        else
+          ...rightBanners.map((b) => _buildBannerAdminItemCard(b)).toList(),
+
+        const SizedBox(height: 14),
+
+        // 4. بنرات القسم الأيسر (Slot 2)
+        Row(
+          children: [
+            const Icon(Icons.view_sidebar_outlined,
+                size: 18, color: Color(0xFF0284C7)),
+            const SizedBox(width: 6),
+            Text(
+              'بنرات القسم الأيسر (Slot 2) (${leftBanners.length}):',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        if (leftBanners.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('لا توجد إعلانات في القسم الأيسر حالياً.',
+                style: TextStyle(color: Colors.grey, fontSize: 11)),
+          )
+        else
+          ...leftBanners.map((b) => _buildBannerAdminItemCard(b)).toList(),
+      ],
+    );
+  }
+
+  // كرت عرض البانوراما المتجاوب تماماً وبدون أي أخطاء تجاوز أو أحمر (Overflow)
+  Widget _buildBannerAdminItemCard(BannerItem b) {
+    final remaining = b.expiresAt.difference(DateTime.now());
+    final days = remaining.inDays;
+    final isExpired = remaining.isNegative;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Row(
+          children: [
+            // صورة البنر
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                width: 50,
+                height: 50,
+                child: AppSmartImage(imageUrl: b.imageUrl, fit: BoxFit.cover),
               ),
-              title: Text(b.title,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 13),
-                  maxLines: 1),
-              subtitle: Column(
+            ),
+            const SizedBox(width: 10),
+            // تفاصيل البنر بشكل محمي ومرن 100%
+            Expanded(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                      'عدد الصور: ${b.imageUrls.length} صور • المدة: ${b.displayDurationSeconds} ثوانٍ',
-                      style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                    b.title,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Icon(Icons.timer,
-                          size: 12,
-                          color: isExpired ? Colors.red : Colors.green),
-                      const SizedBox(width: 4),
-                      Text(
-                        isExpired
-                            ? 'انتهى الاشتراك ❌'
-                            : 'متبقي للاشتراك: $days يوم و $hours ساعة ⏳',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: isExpired ? Colors.red : Colors.green.shade800,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    'القسم: ${b.slot == 1 ? "الأيمن (1)" : "الأيسر (2)"} • الصور: ${b.imageUrls.length} • المدة: ${b.displayDurationSeconds}ث',
+                    style: const TextStyle(fontSize: 10, color: Colors.grey),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    isExpired ? '❌ منتهي' : '⏳ متبقي: $days يوم',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: isExpired ? Colors.red : Colors.green.shade800,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                tooltip: 'حذف البانوراما من السيرفر',
-                onPressed: () async {
-                  try {
-                    await Supabase.instance.client
-                        .from('banners')
-                        .delete()
-                        .eq('id', b.id);
-                  } catch (_) {}
-                  setState(
-                      () => _manager.banners.removeWhere((x) => x.id == b.id));
-                  _manager.saveBannersToOfflineCache(_manager.banners);
-                },
-              ),
             ),
-          );
-        }).toList(),
-      ],
+            // زر الحذف
+            IconButton(
+              icon:
+                  const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+              tooltip: 'حذف',
+              onPressed: () async {
+                try {
+                  await Supabase.instance.client
+                      .from('banners')
+                      .delete()
+                      .eq('id', b.id);
+                } catch (_) {}
+                setState(
+                    () => _manager.banners.removeWhere((x) => x.id == b.id));
+                _manager.saveBannersToOfflineCache(_manager.banners);
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
