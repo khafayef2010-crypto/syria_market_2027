@@ -5675,7 +5675,8 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
                             ),
                           ),
                         ],
-                const Divider(height: 16),
+                      ),
+                      const Divider(height: 16),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
@@ -5953,7 +5954,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     if (_receiptImageBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('⚠️ يرجى إرفاق صورة إشعار أو إيصال التحويل لإثبات الدفع'),
+          content:
+              Text('⚠️ يرجى إرفاق صورة إشعار أو إيصال التحويل لإثبات الدفع'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -5964,9 +5966,11 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
 
     final isYearly = _selectedDurationType == 'yearly';
     final durationHours = isYearly ? 8760 : 720;
-    final durationLabel = isYearly ? 'اشتراك سنوي (12 شهر) 🌟' : 'اشتراك شهري (30 يوم) 📅';
+    final durationLabel =
+        isYearly ? 'اشتراك سنوي (12 شهر) 🌟' : 'اشتراك شهري (30 يوم) 📅';
     final basePrice = _selectedPlan!.priceUsd;
-    final finalPrice = isYearly ? (basePrice * 10) : basePrice; // خصم شهرين مجاناً في السنوي
+    final finalPrice =
+        isYearly ? (basePrice * 10) : basePrice; // خصم شهرين مجاناً في السنوي
 
     final success = await _manager.submitPaymentAuditRequest(
       planId: _selectedPlan!.id,
@@ -6026,7 +6030,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     final isYearly = _selectedDurationType == 'yearly';
     final basePrice = _selectedPlan != null ? _selectedPlan!.priceUsd : 0.0;
     final finalPriceUsd = isYearly ? (basePrice * 10) : basePrice;
-    final finalPriceSyp = (finalPriceUsd * _manager.exchangeRateUsdToSyp).toInt();
+    final finalPriceSyp =
+        (finalPriceUsd * _manager.exchangeRateUsdToSyp).toInt();
 
     return Scaffold(
       backgroundColor: _manager.scaffoldBgColor,
@@ -6079,7 +6084,9 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
           const Text('2. اختر الباقة المناسبة لك:',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
           const SizedBox(height: 8),
-          ..._manager.subscriptionPlans.where((p) => p.priceUsd > 0).map((plan) {
+          ..._manager.subscriptionPlans
+              .where((p) => p.priceUsd > 0)
+              .map((plan) {
             final isSelected = _selectedPlan?.id == plan.id;
             final itemPrice = isYearly ? (plan.priceUsd * 10) : plan.priceUsd;
             final itemSyp = (itemPrice * _manager.exchangeRateUsdToSyp).toInt();
@@ -6089,9 +6096,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
                 side: BorderSide(
-                  color: isSelected
-                      ? const Color(0xFFD4AF37)
-                      : Colors.transparent,
+                  color:
+                      isSelected ? const Color(0xFFD4AF37) : Colors.transparent,
                   width: 2,
                 ),
               ),
@@ -6172,7 +6178,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
             decoration: InputDecoration(
               labelText: 'الاسم الكامل أو اسم المتجر/المحل *',
               prefixIcon: const Icon(Icons.person),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             ),
           ),
           const SizedBox(height: 10),
@@ -6182,7 +6189,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
             decoration: InputDecoration(
               labelText: 'رقم هاتف الاتصال والواتساب *',
               prefixIcon: const Icon(Icons.phone),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             ),
           ),
           const SizedBox(height: 10),
@@ -6192,7 +6200,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
             decoration: InputDecoration(
               labelText: 'البريد الإلكتروني (لتأكيد الفاتورة)',
               prefixIcon: const Icon(Icons.email),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             ),
           ),
           const SizedBox(height: 10),
@@ -6200,7 +6209,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
             value: _selectedGovernorate,
             decoration: InputDecoration(
               labelText: 'المحافظة',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             ),
             items: _governorates
                 .map((g) => DropdownMenuItem(value: g, child: Text(g)))
@@ -6550,7 +6560,10 @@ class _PanoramaBookingScreenState extends State<PanoramaBookingScreen> {
             children: _durationOptions.map((opt) {
               final isSel = _selectedDuration['hours'] == opt['hours'];
               return ChoiceChip(
-                label: Text('${opt['label']} (\${opt['priceUsd']})'),
+                label: Text(opt['label'].toString() +
+                    ' (' +
+                    opt['priceUsd'].toString() +
+                    ' USD)'),
                 selected: isSel,
                 selectedColor: const Color(0xFFD4AF37),
                 onSelected: (val) {
@@ -6575,8 +6588,7 @@ class _PanoramaBookingScreenState extends State<PanoramaBookingScreen> {
                         fontWeight: FontWeight.bold, color: Colors.green)),
                 Text('$priceSyp ليرة سورية',
                     style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFD4AF37))),
+                        fontWeight: FontWeight.bold, color: Color(0xFFD4AF37))),
               ],
             ),
           ),
@@ -6736,8 +6748,7 @@ class _PanoramaBookingScreenState extends State<PanoramaBookingScreen> {
                         Icon(Icons.receipt_long,
                             color: Color(0xFFD4AF37), size: 30),
                         SizedBox(height: 4),
-                        Text(
-                            'اضغط لإرفاق صورة إشعار أو لقطة شاشة التحويل 📸',
+                        Text('اضغط لإرفاق صورة إشعار أو لقطة شاشة التحويل 📸',
                             style: TextStyle(
                                 fontWeight: FontWeight.bold, fontSize: 12)),
                       ],
@@ -6877,6 +6888,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
     _searchController.dispose();
     super.dispose();
   }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
@@ -6992,7 +7004,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       debugPrint('Error toggling favorite: $e');
     }
   }
-Future<void> _fetchUserChats() async {
+
+  Future<void> _fetchUserChats() async {
     if (!_manager.isLoggedIn || _manager.currentUserId.isEmpty) return;
     try {
       final res = await Supabase.instance.client
@@ -7398,8 +7411,8 @@ Future<void> _fetchUserChats() async {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content: Text(
-                    '✅ تم رفع وتحديث البنر الإعلاني بالسيرفر بنجاح!')),
+                content:
+                    Text('✅ تم رفع وتحديث البنر الإعلاني بالسيرفر بنجاح!')),
           );
         }
       }
@@ -8206,7 +8219,8 @@ Future<void> _fetchUserChats() async {
       ),
     );
   }
-Widget _buildRoyalBannersSection() {
+
+  Widget _buildRoyalBannersSection() {
     final targetGovernorate = _selectedGovernorate;
     final activeBanners = _manager.banners.where((b) {
       final notExpired = !b.isExpired && b.isActive;
@@ -8384,7 +8398,8 @@ Widget _buildRoyalBannersSection() {
       ),
     );
   }
-Widget _buildEmptySlotBannerCard(String placeholderText) {
+
+  Widget _buildEmptySlotBannerCard(String placeholderText) {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () {
@@ -8552,6 +8567,7 @@ Widget _buildEmptySlotBannerCard(String placeholderText) {
       ],
     );
   }
+
   Widget _buildCompactFacingGridAdCard(AdItem ad) {
     final isFav = _favoriteAdIds.contains(ad.id);
     final remaining = ad.soldRemainingDuration;
