@@ -12056,7 +12056,7 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: _manager.isMaintenanceMode
-                ? Colors.red.shade950.withOpacity(0.4)
+                ? Colors.red.shade900.withOpacity(0.4)
                 : const Color(0xFF0F172A),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
