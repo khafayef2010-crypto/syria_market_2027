@@ -7357,6 +7357,34 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
   final ImagePicker _picker = ImagePicker();
   int _currentNavIndex = 0;
 
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _manager.scaffoldBgColor,
+      body: SafeArea(
+        child: _currentNavIndex == 2
+            ? _buildFavoritesTab()
+            : _currentNavIndex == 3
+                ? _buildProfileTab()
+                : const Center(child: Text('سوق سوريا الشامل')),
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentNavIndex,
+        onTap: (i) => setState(() => _currentNavIndex = i),
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: _manager.appBarColor,
+        selectedItemColor: _manager.secondaryColor,
+        unselectedItemColor: Colors.white60,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'الرئيسية'),
+          BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'الأقسام'),
+          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'المفضلة'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'حسابي'),
+        ],
+      ),
+    );
+  }
+
   final List<String> _governorates = [
     'كل المحافظات',
     'دمشق',
@@ -12028,7 +12056,7 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: _manager.isMaintenanceMode
-                ? Colors.red.shade900.withOpacity(0.4)
+                ? Colors.red.shade950.withOpacity(0.4)
                 : const Color(0xFF0F172A),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
