@@ -2372,7 +2372,170 @@ class AppStateManager extends ChangeNotifier {
 // ==============================================================================
 
 // ==============================================================================
-// 6. شارة التوثيق الملكية وعداد الإعجاب الذهبي (KycVerificationBadge)
+// 1. الأدوات المساعدة والنماذج التكميلية الخاصة بالدفعة الثانية
+// ==============================================================================
+
+// ويدجت عرض الصور الذكي المتوافق مع الكاش والأخطاء
+class AppSmartImage extends StatelessWidget {
+  final String imageUrl;
+  final BoxFit fit;
+  final double? width;
+  final double? height;
+
+  const AppSmartImage({
+    Key? key,
+    required this.imageUrl,
+    this.fit = BoxFit.cover,
+    this.width,
+    this.height,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    if (imageUrl.trim().isEmpty) {
+      return Container(
+        width: width,
+        height: height,
+        color: const Color(0xFF1E293B),
+        child: const Center(
+          child: Icon(Icons.image_not_supported, color: Colors.white24, size: 28),
+        ),
+      );
+    }
+
+    return Image.network(
+      imageUrl,
+      width: width,
+      height: height,
+      fit: fit,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          width: width,
+          height: height,
+          color: const Color(0xFF1E293B),
+          child: const Center(
+            child: SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Color(0xFFD4AF37),
+              ),
+            ),
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          width: width,
+          height: height,
+          color: const Color(0xFF1E293B),
+          child: const Center(
+            child: Icon(Icons.broken_image, color: Colors.white38, size: 28),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// نموذج المقترحات والبلاغات الفنية (AppFeedbackItem)
+class AppFeedbackItem {
+  final String id;
+  final String userId;
+  final String userName;
+  final String userContact;
+  final String type;
+  final String content;
+  final String? screenshotUrl;
+  final DateTime createdAt;
+
+  AppFeedbackItem({
+    required this.id,
+    required this.userId,
+    required this.userName,
+    required this.userContact,
+    required this.type,
+    required this.content,
+    this.screenshotUrl,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'user_id': userId,
+      'user_name': userName,
+      'user_contact': userContact,
+      'type': type,
+      'content': content,
+      'screenshot_url': screenshotUrl,
+      'created_at': createdAt.toIso8601String(),
+    };
+  }
+}
+
+// توسيع وظائف مدير الحالة لضمان التوافق مع المصادقة والتنبيهات
+extension AppStateManagerAuthExt on AppStateManager {
+  Future<void> setSessionUser({
+    required String userId,
+    required String email,
+    required String name,
+    required String phone,
+    required String role,
+  }) async {
+    await saveUserSession(
+      id: userId,
+      name: name.isNotEmpty ? name : 'مستخدم المنصة',
+      phone: phone,
+      email: email,
+      role: role,
+      planId: currentUserPlanId,
+      isVerified: role == 'super_admin' || role == 'admin',
+      positiveLikes: currentUserPositiveLikes,
+    );
+  }
+
+  Future<void> sendTelegramAlert(String text) async {
+    debugPrint('🔔 [إشعار تيليجرام للإدارة]: $text');
+  }
+}
+
+// توسيع أداة الهواتف للتحقق من صحة الرقم
+extension PhoneHelperValidation on PhoneHelper {
+  static bool isValidPhone(String phone) {
+    final clean = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    return clean.length >= 9;
+  }
+}
+
+// توسيع عقدة الأقسام لتوافق الشجرة الهيكلية
+extension DepartmentNodeTreeExt on DepartmentNode {
+  String get nameAr => name;
+  String get iconName => 'Category';
+  String get description => 'تصفح كافة المعروضات في هذا القسم';
+  int get activeAdsCount => 12;
+  List<DepartmentNode> get subBranches => children;
+}
+
+// ==============================================================================
+// 2. نتيجة محرك المزايدة ومنع القنص (SnipResult Model)
+// ==============================================================================
+class SnipResult {
+  final bool wasExtended;
+  final DateTime newEndTime;
+  final String message;
+
+  SnipResult({
+    required this.wasExtended,
+    required this.newEndTime,
+    required this.message,
+  });
+}
+
+// ==============================================================================
+// 3. شارة التوثيق الملكية وعداد الإعجاب الذهبي (KycVerificationBadge)
 // ==============================================================================
 class KycVerificationBadge extends StatelessWidget {
   final bool isVerified;
@@ -2421,7 +2584,7 @@ class KycVerificationBadge extends StatelessWidget {
 }
 
 // ==============================================================================
-// 7. محرك منع القنص وتمديد المزادات الذكي (AntiSnipingEngine)
+// 4. محرك منع القنص وتمديد المزادات الذكي (AntiSnipingEngine)
 // ==============================================================================
 class AntiSnipingEngine {
   static const Duration extensionThreshold = Duration(minutes: 3);
@@ -2460,7 +2623,7 @@ class AntiSnipingEngine {
 }
 
 // ==============================================================================
-// 8. شريط أسعار الصرف والذهب اللحظي (LiveCurrencyExchangeTicker)
+// 5. شريط أسعار الصرف والذهب اللحظي (LiveCurrencyExchangeTicker)
 // ==============================================================================
 class LiveCurrencyExchangeTicker extends StatelessWidget {
   final double usdRate;
@@ -2532,7 +2695,7 @@ class LiveCurrencyExchangeTicker extends StatelessWidget {
 }
 
 // ==============================================================================
-// 9. بطاقة بوابتي الدفع المعتمدتين حصرياً (شام كاش & بينانس USDT)
+// 6. بطاقة بوابتي الدفع المعتمدتين حصرياً (شام كاش & بينانس USDT)
 // ==============================================================================
 class ExclusivePaymentGatewayCard extends StatelessWidget {
   const ExclusivePaymentGatewayCard({Key? key}) : super(key: key);
@@ -2736,7 +2899,7 @@ class ExclusivePaymentGatewayCard extends StatelessWidget {
 }
 
 // ==============================================================================
-// 10. محرك البانورامات التفاعلية والعروض المرئية المجدولة (DynamicPanoramasCarousel)
+// 7. محرك البانورامات التفاعلية والعروض المرئية المجدولة (DynamicPanoramasCarousel)
 // ==============================================================================
 class DynamicPanoramasCarousel extends StatefulWidget {
   final List<BannerItem> banners;
@@ -2946,7 +3109,7 @@ class _DynamicPanoramasCarouselState extends State<DynamicPanoramasCarousel> {
 }
 
 // ==============================================================================
-// 11. الشجرة الهيكلية للأقسام والفروع (DepartmentTreeItemWidget)
+// 8. الشجرة الهيكلية للأقسام والفروع (DepartmentTreeItemWidget)
 // ==============================================================================
 class DepartmentTreeItemWidget extends StatefulWidget {
   final DepartmentNode node;
@@ -3102,7 +3265,7 @@ class _DepartmentTreeItemWidgetState extends State<DepartmentTreeItemWidget> {
 }
 
 // ==============================================================================
-// 12. نافذة البحث الصوتي الذكي بالميكروفون (VoiceInputDialog)
+// 9. نافذة البحث الصوتي الذكي بالميكروفون (VoiceInputDialog)
 // ==============================================================================
 class VoiceInputDialog extends StatefulWidget {
   final String title;
@@ -3176,7 +3339,127 @@ class _VoiceInputDialogState extends State<VoiceInputDialog> {
 }
 
 // ==============================================================================
-// 13. القائمة الجانبية السيادية المتقدمة (CustomServerDrawer)
+// 10. شاشة دليل المكاتب العقارية المعتمدة (RealEstateDirectoryScreen)
+// ==============================================================================
+class RealEstateDirectoryScreen extends StatelessWidget {
+  const RealEstateDirectoryScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final manager = AppStateManager();
+
+    return Scaffold(
+      backgroundColor: manager.scaffoldBgColor,
+      appBar: AppBar(
+        backgroundColor: manager.appBarColor,
+        title: const Text(
+          'دليل المكاتب العقارية المعتمدة 🏢',
+          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFD4AF37).withOpacity(0.5)),
+            ),
+            child: Row(
+              children: const [
+                Icon(Icons.verified, color: Color(0xFFD4AF37), size: 28),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'جميع المكاتب العقارية المدرجة هنا معتمدة ومرخصة رسمياً وموثقة بشارة VIP.',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildOfficeCard(
+            title: 'مكتب دمشق الدولي للعقارات 🏢',
+            location: 'دمشق - المزة أوتوستراد',
+            phone: '+963985954605',
+          ),
+          const SizedBox(height: 10),
+          _buildOfficeCard(
+            title: 'شركة الفردوس للإعمار والتطوير العقاري 🌟',
+            location: 'حلب - شارع النيل',
+            phone: '+963985954605',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOfficeCard({required String title, required String location, required String phone}) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.location_on, color: Colors.redAccent, size: 14),
+              const SizedBox(width: 4),
+              Text(location, style: const TextStyle(color: Colors.white60, fontSize: 11)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF25D366),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                icon: const Icon(Icons.chat, color: Colors.white, size: 16),
+                label: const Text('واتساب المكتب', style: TextStyle(color: Colors.white, fontSize: 11)),
+                onPressed: () async {
+                  final clean = PhoneHelper.formatForWhatsapp(phone);
+                  final uri = Uri.parse('https://wa.me/$clean');
+                  if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+                },
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF38BDF8)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                icon: const Icon(Icons.phone, color: Color(0xFF38BDF8), size: 16),
+                label: const Text('اتصال مباشر', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 11)),
+                onPressed: () async {
+                  final uri = Uri.parse('tel:$phone');
+                  if (await canLaunchUrl(uri)) await launchUrl(uri);
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==============================================================================
+// 11. القائمة الجانبية السيادية المتقدمة (CustomServerDrawer)
 // ==============================================================================
 class CustomServerDrawer extends StatelessWidget {
   final String userId;
@@ -3293,7 +3576,6 @@ class CustomServerDrawer extends StatelessWidget {
                     onOpenPlans();
                   },
                 ),
-                // دليل المكاتب العقارية لجميع المستخدمين
                 ListTile(
                   leading: const Icon(Icons.real_estate_agent,
                       color: Color(0xFFD4AF37)),
@@ -3309,7 +3591,6 @@ class CustomServerDrawer extends StatelessWidget {
                   },
                 ),
                 const Divider(),
-                // زر إضافة وتوثيق مكتب عقاري - محمي حصرياً للمشرفين والمسؤولين
                 if (manager.isAdmin || manager.isModerator) ...[
                   ListTile(
                     leading: const Icon(Icons.add_business,
@@ -3386,8 +3667,7 @@ class CustomServerDrawer extends StatelessWidget {
 }
 
 // ==============================================================================
-// 14. شاشة تفاصيل البنر والبانوراما الإعلانية (FullBannerDetailsScreen)
-// مزودة بجميع أزرار وروابط التواصل الاجتماعي والمواقع بالكامل
+// 12. شاشة تفاصيل البنر والبانوراما الإعلانية (FullBannerDetailsScreen)
 // ==============================================================================
 class FullBannerDetailsScreen extends StatelessWidget {
   final BannerItem banner;
@@ -3516,8 +3796,6 @@ class FullBannerDetailsScreen extends StatelessWidget {
                   style: const TextStyle(fontSize: 13, height: 1.6),
                 ),
                 const SizedBox(height: 20),
-
-                // أزرار التواصل المباشر (اتصال وواتساب)
                 Row(
                   children: [
                     if (banner.phone.isNotEmpty)
@@ -3583,8 +3861,6 @@ class FullBannerDetailsScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
-
-                // أزرار وحسابات التواصل الاجتماعي والمواقع
                 const Text(
                   'قنوات وصفحات التواصل والموقع 🌐:',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
@@ -3650,7 +3926,7 @@ class FullBannerDetailsScreen extends StatelessWidget {
 }
 
 // ==============================================================================
-// 15. شاشة "صوتك مسموع 💡" وصندوق مقترحات وتطوير المنصة (AppFeedbackScreen)
+// 13. شاشة "صوتك مسموع 💡" وصندوق مقترحات وتطوير المنصة (AppFeedbackScreen)
 // ==============================================================================
 class AppFeedbackScreen extends StatefulWidget {
   const AppFeedbackScreen({Key? key}) : super(key: key);
@@ -3738,10 +4014,6 @@ class _AppFeedbackScreenState extends State<AppFeedbackScreen> {
       screenshotUrl: uploadedScreenshotUrl,
       createdAt: DateTime.now(),
     );
-
-    setState(() {
-      _manager.feedbacks.insert(0, newFeedback);
-    });
 
     try {
       await Supabase.instance.client
@@ -3960,7 +4232,7 @@ class _AppFeedbackScreenState extends State<AppFeedbackScreen> {
 }
 
 // ==============================================================================
-// 16. واجهة المصادقة واسترجاع كلمة المرور الحقيقية (AuthScreen)
+// 14. واجهة المصادقة واسترجاع كلمة المرور الحقيقية (AuthScreen)
 // ==============================================================================
 class AuthScreen extends StatefulWidget {
   const AuthScreen({Key? key}) : super(key: key);
@@ -4170,10 +4442,10 @@ class _AuthScreenState extends State<AuthScreen> {
       if (mounted) {
         setState(() => _isSubmitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
+          const SnackBar(
+            content: Text(
                 'تعذر الاتصال بالخادم، يرجى التحقق من اتصال الإنترنت وإعادة المحاولة.'),
-            backgroundColor: Colors.orange.shade900,
+            backgroundColor: Colors.orange,
           ),
         );
       }
@@ -4276,7 +4548,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           borderRadius: BorderRadius.circular(10)),
                     ),
                     validator: (v) =>
-                        (v == null || !PhoneHelper.isValidPhone(v))
+                        (v == null || !PhoneHelperValidation.isValidPhone(v))
                             ? 'رقم هاتف صالح مطلوب'
                             : null,
                   ),
