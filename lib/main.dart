@@ -1217,6 +1217,43 @@ class AppStateManager extends ChangeNotifier {
   static final AppStateManager _instance = AppStateManager._internal();
   factory AppStateManager() => _instance;
   AppStateManager._internal();
+  // 1. جلب خطة اشتراك المستخدم الحالية (حل خطأ السطر 3161 و 9671)
+  SubscriptionPlanItem getCurrentUserPlan() {
+    if (subscriptionPlans.isNotEmpty) {
+      final match = subscriptionPlans.where((p) => p.id == currentUserPlanId);
+      if (match.isNotEmpty) return match.first;
+      return subscriptionPlans.first;
+    }
+    return SubscriptionPlanItem.fromMap({
+      'id': 'plan_free',
+      'name': 'الباقة المجانية',
+      'price_usd': 0,
+      'max_ads': 5,
+      'max_images_per_ad': 8,
+      'features': ['نشر إعلانات مجانية'],
+    });
+  }
+
+  // 2. تتبع كلمات البحث وإحصائيات السوق (حل خطأ السطر 8565)
+  void trackSearchKeyword(String val) {
+    if (val.trim().isEmpty) return;
+    try {
+      Supabase.instance.client.from('search_analytics').insert({
+        'keyword': val.trim(),
+        'searched_at': DateTime.now().toIso8601String(),
+      });
+    } catch (_) {}
+  }
+
+  // 3. تتبع وزيادة نقرات البانوراما الإعلانية (حل خطأ السطر 8884)
+  void incrementBannerClick(String bannerId) {
+    try {
+      Supabase.instance.client.rpc('increment_banner_clicks', params: {
+        'banner_id': bannerId,
+      });
+    } catch (_) {}
+  }
+
 // ميزة زيادة وتحديث مشاهدات الإعلان الحية
   void incrementAdViews(String adId) {
     final idx = ads.indexWhere((x) => x.id == adId);
