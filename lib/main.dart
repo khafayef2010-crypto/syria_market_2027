@@ -1217,6 +1217,20 @@ class AppStateManager extends ChangeNotifier {
   static final AppStateManager _instance = AppStateManager._internal();
   factory AppStateManager() => _instance;
   AppStateManager._internal();
+// ميزة زيادة وتحديث مشاهدات الإعلان الحية
+  void incrementAdViews(String adId) {
+    final idx = ads.indexWhere((x) => x.id == adId);
+    if (idx != -1) {
+      ads[idx] = ads[idx].copyWith(viewsCount: ads[idx].viewsCount + 1);
+      notifyListeners();
+
+      try {
+        Supabase.instance.client
+            .from('ads')
+            .update({'views_count': ads[idx].viewsCount}).eq('id', adId);
+      } catch (_) {}
+    }
+  }
 
   // إعدادات الهوية والتطبيق
   String appTitle = 'سوق سوريا الشامل 2028';
@@ -9272,24 +9286,41 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
                       ),
                     ),
 
-                  // زر المفضلة أعلى اليسار
+                  // زر المفضلة الملكي المطور: واضح وكبير ولمسته فورية وسريعة جداً
                   Positioned(
-                    top: 4,
-                    left: 4,
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: const BoxDecoration(
-                          color: Colors.black45, shape: BoxShape.circle),
-                      child: GestureDetector(
-                        onTap: () {
-                          _requireAuth(() {
-                            _toggleFavoriteInSupabase(ad.id);
-                          });
-                        },
+                    top: 6,
+                    left: 6,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        _requireAuth(() {
+                          _toggleFavoriteInSupabase(ad.id);
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: isFav
+                              ? Colors.red.withOpacity(0.85)
+                              : Colors.black.withOpacity(0.60),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isFav ? Colors.white : Colors.white54,
+                            width: 1.2,
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black45,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
                         child: Icon(
-                            isFav ? Icons.favorite : Icons.favorite_border,
-                            color: isFav ? Colors.red : Colors.white,
-                            size: 14),
+                          isFav ? Icons.favorite : Icons.favorite_border,
+                          color: Colors.white,
+                          size: 17, // حجم واضح ومريح جداً للعين وللأصبع
+                        ),
                       ),
                     ),
                   ),
@@ -9317,7 +9348,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
                         ),
                       ),
                     ),
-
                   // عداد المشاهدات
                   Positioned(
                     bottom: 4,
