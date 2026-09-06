@@ -1217,6 +1217,7 @@ class AppStateManager extends ChangeNotifier {
   static final AppStateManager _instance = AppStateManager._internal();
   factory AppStateManager() => _instance;
   AppStateManager._internal();
+
   // 1. جلب خطة اشتراك المستخدم الحالية (حل خطأ السطر 3161 و 9671)
   SubscriptionPlanItem getCurrentUserPlan() {
     if (subscriptionPlans.isNotEmpty) {
@@ -1232,6 +1233,31 @@ class AppStateManager extends ChangeNotifier {
       'max_images_per_ad': 8,
       'features': ['نشر إعلانات مجانية'],
     });
+  }
+
+  // ميزة ترقية باقة المستخدم وتفعيل مدة الاشتراك (حل خطأ السطر 1980)
+  void upgradeUserPlan(String planId, {int durationHours = 720}) {
+    currentUserPlanId = planId;
+    currentUserPlanExpiresAt =
+        DateTime.now().add(Duration(hours: durationHours));
+    isCurrentUserVerified = true;
+    notifyListeners();
+
+    try {
+      SharedPreferences.getInstance().then((prefs) {
+        prefs.setString('ss_user_plan_id', planId);
+        prefs.setString('ss_user_plan_expires',
+            currentUserPlanExpiresAt!.toIso8601String());
+        prefs.setBool('ss_user_verified', true);
+      });
+      if (currentUserId.isNotEmpty) {
+        Supabase.instance.client.from('profiles').update({
+          'plan_id': planId,
+          'plan_expires_at': currentUserPlanExpiresAt!.toIso8601String(),
+          'is_verified': true,
+        }).eq('id', currentUserId);
+      }
+    } catch (_) {}
   }
 
   // 2. تتبع كلمات البحث وإحصائيات السوق (حل خطأ السطر 8565)
@@ -1254,7 +1280,7 @@ class AppStateManager extends ChangeNotifier {
     } catch (_) {}
   }
 
-// ميزة زيادة وتحديث مشاهدات الإعلان الحية
+  // ميزة زيادة وتحديث مشاهدات الإعلان الحية
   void incrementAdViews(String adId) {
     final idx = ads.indexWhere((x) => x.id == adId);
     if (idx != -1) {
@@ -12002,7 +12028,7 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: _manager.isMaintenanceMode
-                ? Colors.red.shade950.withOpacity(0.4)
+                ? Colors.red.shade900.withOpacity(0.4)
                 : const Color(0xFF0F172A),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
